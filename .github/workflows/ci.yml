@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      # Lint = strict tsc with no emit, same convention as sloth-box/api
+      # (no eslint/prettier in this org's TypeScript repos).
+      - run: npm run lint
+
+      - run: npm run build
+
+      - run: npm test
+
+      # Packaging correctness: publint checks the package.json/dist wiring,
+      # arethetypeswrong resolves the packed tarball under every module
+      # resolution mode (node10 / node16-cjs / node16-esm / bundler) so the
+      # dual ESM+CJS build can't ship broken types.
+      - name: Verify packaging (publint + arethetypeswrong)
+        run: npm run check:package

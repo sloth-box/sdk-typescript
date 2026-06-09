@@ -1,0 +1,60 @@
+{
+  "name": "@slothbox/sdk",
+  "version": "0.1.0",
+  "description": "Official TypeScript SDK for the Slothbox API",
+  "private": false,
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.cts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "check:package": "publint && attw --pack ."
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sloth-box/sdk-typescript.git"
+  },
+  "homepage": "https://github.com/sloth-box/sdk-typescript#readme",
+  "bugs": {
+    "url": "https://github.com/sloth-box/sdk-typescript/issues"
+  },
+  "keywords": [
+    "slothbox",
+    "sdk",
+    "api-client",
+    "dev-box",
+    "typescript"
+  ],
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.3",
+    "publint": "^0.3.21",
+    "tsup": "^8.5.1",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  }
+}
