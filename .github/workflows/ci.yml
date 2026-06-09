@@ -52,3 +52,16 @@ jobs:
       # dual ESM+CJS build can't ship broken types.
       - name: Verify packaging (publint + arethetypeswrong)
         run: npm run check:package
+
+      # Example gallery (SLO-143): examples/ imports @slothbox/sdk through a
+      # `file:..` dependency, so the typecheck resolves the root package's
+      # `exports` to the BUILT dist/*.d.ts — the same way an npm consumer
+      # would. A breaking change to the SDK surface fails here, so the
+      # examples cannot rot. Must run after `npm run build` (it needs dist/).
+      # Example-only deps (Express, tsx, @types/*) install from examples'
+      # own lockfile, keeping the SDK package's devDeps unpolluted.
+      - name: Typecheck examples
+        working-directory: examples
+        run: |
+          npm ci
+          npm run typecheck

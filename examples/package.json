@@ -1,0 +1,23 @@
+{
+  "name": "@slothbox/sdk-examples",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Runnable examples for @slothbox/sdk (SLO-143). Never published — the SDK package itself stays zero-dependency; everything example-specific (Express, tsx, @types/*) lives here.",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p .",
+    "ephemeral-worker": "tsx ephemeral-worker.ts",
+    "webhook-receiver-express": "tsx webhook-receiver-express.ts",
+    "env-config-sync": "tsx env-config-sync.ts"
+  },
+  "dependencies": {
+    "@slothbox/sdk": "file:..",
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/node": "^22.15.30",
+    "tsx": "^4.20.3",
+    "typescript": "^5.6.3"
+  }
+}

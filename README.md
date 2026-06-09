@@ -381,6 +381,23 @@ asserts its signer still produces those exact bytes; this repo asserts the
 verifier accepts/rejects them — so the two implementations cannot drift apart
 silently. Never edit the file by hand.
 
+## Examples
+
+Runnable, CI-typechecked examples live in [`examples/`](examples/):
+
+- [`ephemeral-worker.ts`](examples/ephemeral-worker.ts) — launch a box per
+  task, do work, **always** terminate: the scale-to-zero pattern, with the
+  idempotent-launch and guaranteed/confirmed-terminate idioms baked in.
+- [`webhook-receiver-express.ts`](examples/webhook-receiver-express.ts) /
+  [`webhook-receiver-cloudflare-worker.ts`](examples/webhook-receiver-cloudflare-worker.ts)
+  — verified webhook receivers: raw-body handling done right, fast ack,
+  idempotent handling.
+- [`env-config-sync.ts`](examples/env-config-sync.ts) — push secrets and
+  variables from CI into an org, idempotently.
+
+Each runs with just `SLOTHBOX_API_KEY` set (plus the obvious resource ids) —
+env contracts and cost-safety notes in [`examples/README.md`](examples/README.md).
+
 ## Development
 
 ```sh

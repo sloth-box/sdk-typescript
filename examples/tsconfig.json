@@ -1,0 +1,26 @@
+{
+  // Typechecks the examples the way a CUSTOMER's toolchain would: the
+  // `@slothbox/sdk` import resolves through the `file:..` dependency to the
+  // repo root's package.json `exports` — i.e. against the BUILT dist/*.d.ts
+  // surface, not the SDK sources. Run `npm run build` at the repo root first.
+  // CI runs `tsc --noEmit -p examples` on every push so the examples cannot
+  // drift from the published API surface (SLO-143).
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "es2022",
+    "moduleResolution": "bundler",
+    "lib": ["es2022"],
+    // Node globals (process, setTimeout, Buffer) plus the undici-typed fetch
+    // globals (Request/Response/Headers) the Cloudflare Worker example types
+    // against structurally — no @cloudflare/workers-types needed (it would
+    // conflict with @types/node in a single program).
+    "types": ["node"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "isolatedModules": true
+  },
+  "include": ["*.ts"]
+}
