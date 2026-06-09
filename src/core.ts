@@ -100,7 +100,12 @@ export type PageOf<K extends OperationId, F extends ItemsFieldOf<K>> = CursorPag
 export interface RequestOptions {
   /** Abort the request (and any auto-pagination it feeds). */
   signal?: AbortSignal;
-  /** Extra headers, merged over the SDK's defaults (case-insensitive). */
+  /**
+   * Extra headers, merged over the SDK's defaults (case-insensitive). One
+   * exception: the `x-slothbox-sdk` identification header is applied after
+   * this merge and cannot be overridden or removed — the API uses it to
+   * identify SDK traffic (see `SDK_IDENTIFICATION_HEADER` in `src/client.ts`).
+   */
   headers?: Record<string, string>;
   /**
    * Override the client's `maxRetries` for this request — the number of

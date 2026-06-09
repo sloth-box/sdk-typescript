@@ -11,11 +11,7 @@
 
 export * from './webhooks.js';
 
-/**
- * The version of this package. Kept in sync with `package.json` (enforced by
- * a unit test).
- */
-export const VERSION = '0.1.0';
+export { VERSION } from './version.js';
 
 // Client
 export { DEFAULT_BASE_URL, Slothbox } from './client.js';

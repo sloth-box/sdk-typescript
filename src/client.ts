@@ -43,9 +43,30 @@ import { Secrets } from './resources/secrets.js';
 import { SshKeys } from './resources/ssh-keys.js';
 import { Templates } from './resources/templates.js';
 import { Webhooks } from './resources/webhooks.js';
+import { VERSION } from './version.js';
 
 /** Default base URL — the spec's `servers` entry. */
 export const DEFAULT_BASE_URL = 'https://api.slothbox.dev';
+
+/**
+ * Name of the SDK identification header sent on every request, including the
+ * raw {@link Slothbox.request} escape hatch: `x-slothbox-sdk:
+ * slothbox-sdk-typescript/<version>`.
+ *
+ * Always on, by design — there is no option to disable it, and it is applied
+ * after per-request `headers`, so a user-supplied override cannot change or
+ * remove it. The API uses this header to identify SDK traffic, which requires
+ * an org service-account key (API plan): SDK-identified requests on any other
+ * credential are rejected with `sdk_requires_service_key` (403,
+ * `PermissionDeniedError`).
+ *
+ * (`User-Agent` is deliberately NOT set — it is forbidden in browsers and
+ * some other runtimes, so the SDK skips it everywhere for consistency.)
+ */
+const SDK_IDENTIFICATION_HEADER = 'x-slothbox-sdk';
+
+/** Value of the {@link SDK_IDENTIFICATION_HEADER}: `slothbox-sdk-typescript/<version>`. */
+const SDK_IDENTIFICATION_VALUE = `slothbox-sdk-typescript/${VERSION}`;
 
 /**
  * A `fetch`-compatible function. The global `fetch` satisfies this; pass your
@@ -56,9 +77,14 @@ export type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 /** Constructor options for {@link Slothbox}. */
 export interface SlothboxOptions {
   /**
-   * Slothbox API key (`sk_…`). Create one in the Slothbox dashboard. Falls
-   * back to the `SLOTHBOX_API_KEY` environment variable (in runtimes that
-   * expose a Node-style `process.env`).
+   * Slothbox API key (`sk_…`). Falls back to the `SLOTHBOX_API_KEY`
+   * environment variable (in runtimes that expose a Node-style `process.env`).
+   *
+   * This must be an **org service-account key** (API plan), created in the
+   * Slothbox dashboard. The SDK identifies itself to the API on every request
+   * (`x-slothbox-sdk` header), and SDK-identified requests on any other
+   * credential — personal seat keys, browser-session auth — are rejected
+   * with `sdk_requires_service_key` (403).
    *
    * Sent as-is in the `Authorization` header — the API accepts the raw key
    * with or without a `Bearer ` prefix, so no prefix is added.
@@ -250,6 +276,10 @@ export class Slothbox implements APIRequester {
    * with the client's auth and error mapping. Prefer the typed resource
    * methods.
    *
+   * Like every request the client makes, this sends the `x-slothbox-sdk`
+   * identification header; it is applied after `options.headers`, so it
+   * cannot be overridden or removed (see {@link SDK_IDENTIFICATION_HEADER}).
+   *
    * JSON responses are parsed; non-JSON responses (e.g. the CloudFormation
    * template YAML) resolve to the raw body string; 204s resolve to
    * `undefined`. Non-2xx responses throw the typed error hierarchy.
@@ -275,6 +305,10 @@ export class Slothbox implements APIRequester {
     for (const [name, value] of Object.entries(options.headers ?? {})) {
       headers.set(name, value);
     }
+    // Applied AFTER the per-request headers so a user-supplied override can
+    // never change or remove it — the API relies on this header to identify
+    // SDK traffic (see SDK_IDENTIFICATION_HEADER).
+    headers.set(SDK_IDENTIFICATION_HEADER, SDK_IDENTIFICATION_VALUE);
 
     const fetchImpl = this.#fetch ?? globalThis.fetch;
     if (typeof fetchImpl !== 'function') {

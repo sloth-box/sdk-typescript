@@ -34,6 +34,10 @@ export type SlothboxErrorCode =
   // API plan (402)
   | 'api_plan_required'
   | 'api_plan_lapsed'
+  // SDK traffic on a non-service-account credential (403) — the SDK
+  // identifies itself via the `x-slothbox-sdk` header on every request, and
+  // the API requires an org service-account key for SDK-identified traffic
+  | 'sdk_requires_service_key'
   // throttling (429)
   | 'rate_limited'
   // forward compatibility: any other stable code the API may add
@@ -133,7 +137,14 @@ export class PlanRequiredError extends APIError {
   }
 }
 
-/** 403 — authenticated, but not allowed to perform this operation. */
+/**
+ * 403 — authenticated, but not allowed to perform this operation.
+ * Discriminate on {@link APIError.code}: `sdk_requires_service_key` means the
+ * request carried the SDK's `x-slothbox-sdk` identification header but the
+ * credential was not an org service-account key — the SDK only supports
+ * API-plan service-account keys (`sk_…`), not personal seat keys or
+ * browser-session auth.
+ */
 export class PermissionDeniedError extends APIError {
   constructor(message: string, details: APIErrorDetails) {
     super(message, details);
@@ -192,6 +203,7 @@ const ERROR_CLASS_BY_CODE: Record<string, APIErrorConstructor> = {
   environment_launching: ConflictError,
   api_plan_required: PlanRequiredError,
   api_plan_lapsed: PlanRequiredError,
+  sdk_requires_service_key: PermissionDeniedError,
   rate_limited: RateLimitError,
 };
 

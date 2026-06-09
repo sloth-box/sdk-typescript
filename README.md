@@ -47,6 +47,27 @@ The API key is sent **as-is** in the `Authorization` header — the API accepts
 the raw key, and also strips an optional `Bearer ` prefix server-side, so both
 forms work. The SDK sends the raw key and never assumes a prefix.
 
+#### SDKs require a service-account key
+
+The SDK requires an **org service-account key** from the API plan (`sk_…`,
+created in the dashboard). Personal seat keys and browser-session auth are
+**not supported** through the SDK.
+
+This is enforced server-side: the SDK identifies itself on **every** request —
+including the raw `request()` escape hatch — with an identification header:
+
+```
+x-slothbox-sdk: slothbox-sdk-typescript/<version>
+```
+
+The header is always on, by design. There is no option to disable it, and it
+is applied **after** the per-request `headers` merge, so a user-supplied
+header cannot override or remove it. The API uses it to identify SDK traffic,
+and SDK-identified requests on any other credential are rejected with a 403
+`PermissionDeniedError` carrying `code: 'sdk_requires_service_key'`. (The SDK
+deliberately does not set `User-Agent` — browsers and some runtimes forbid
+it, so it is skipped everywhere for consistency.)
+
 ### Resource surface
 
 Every published operation is exposed, grouped by resource family and named
@@ -63,7 +84,9 @@ const box = await slothbox.environments.launch(
 ```
 
 Every method also takes per-request options: `signal` (an `AbortSignal`) and
-`headers`.
+`headers` (merged over the SDK's defaults — except the `x-slothbox-sdk`
+identification header, which always wins; see
+[Authentication](#sdks-require-a-service-account-key)).
 
 The one non-JSON operation, `awsConnections.getTemplate()`, resolves to the
 CloudFormation template as a raw YAML string.

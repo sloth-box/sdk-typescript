@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cloudFormationTemplateYaml, environment } from './__fixtures__/fixtures.js';
 import { createMockFetch, jsonResponse, textResponse } from './__fixtures__/mock-fetch.js';
 import { APIConnectionError, SlothboxError } from './errors.js';
-import { Slothbox } from './index.js';
+import { Slothbox, VERSION } from './index.js';
 
 const API_KEY = 'sk_test_0123456789';
 
@@ -158,6 +158,52 @@ describe('request building', () => {
       { idempotencyKey: 'retry-7c2a' },
     );
     expect(mock.requests[0]!.headers.get('idempotency-key')).toBe('retry-7c2a');
+  });
+});
+
+describe('SDK identification header', () => {
+  const EXPECTED = `slothbox-sdk-typescript/${VERSION}`;
+
+  it('is sent on resource-surface calls', async () => {
+    const mock = createMockFetch(
+      jsonResponse(200, { hello: 'world' }),
+      jsonResponse(201, environment),
+    );
+    const client = new Slothbox({ apiKey: API_KEY, fetch: mock.fetch });
+    await client.health.get();
+    await client.environments.launch({ orgId: 'org_1', body: { templateId: 'tpl_1' } });
+    expect(mock.requests[0]!.headers.get('x-slothbox-sdk')).toBe(EXPECTED);
+    expect(mock.requests[1]!.headers.get('x-slothbox-sdk')).toBe(EXPECTED);
+  });
+
+  it('is sent on the raw request() escape hatch', async () => {
+    const mock = createMockFetch(jsonResponse(200, { hello: 'world' }));
+    const client = new Slothbox({ apiKey: API_KEY, fetch: mock.fetch });
+    await client.request('GET', '/hello');
+    expect(mock.requests[0]!.headers.get('x-slothbox-sdk')).toBe(EXPECTED);
+  });
+
+  it('cannot be overridden or removed via per-request headers', async () => {
+    const mock = createMockFetch(
+      jsonResponse(200, { hello: 'world' }),
+      jsonResponse(200, { hello: 'world' }),
+    );
+    const client = new Slothbox({ apiKey: API_KEY, fetch: mock.fetch });
+    await client.health.get(undefined, {
+      headers: { 'x-slothbox-sdk': 'spoofed/9.9.9', 'X-Slothbox-SDK': '' },
+    });
+    await client.request('GET', '/hello', { headers: { 'X-SLOTHBOX-SDK': 'curl/8.0' } });
+    expect(mock.requests[0]!.headers.get('x-slothbox-sdk')).toBe(EXPECTED);
+    expect(mock.requests[1]!.headers.get('x-slothbox-sdk')).toBe(EXPECTED);
+  });
+
+  it('has the format slothbox-sdk-typescript/<semver>', async () => {
+    const mock = createMockFetch(jsonResponse(200, { hello: 'world' }));
+    const client = new Slothbox({ apiKey: API_KEY, fetch: mock.fetch });
+    await client.health.get();
+    expect(mock.requests[0]!.headers.get('x-slothbox-sdk')).toMatch(
+      /^slothbox-sdk-typescript\/\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/,
+    );
   });
 });
 

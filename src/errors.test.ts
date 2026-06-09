@@ -147,6 +147,15 @@ describe('code discrimination (SLO-116 envelope codes)', () => {
     expect(error.code).toBe(code);
   });
 
+  it('sdk_requires_service_key → PermissionDeniedError exposing the code', async () => {
+    const client = clientWith(
+      jsonResponse(403, envelope('SDK requests require a service-account key', 'sdk_requires_service_key')),
+    );
+    const error = await capture(client.me.get());
+    expect(error).toBeInstanceOf(PermissionDeniedError);
+    expect(error.code).toBe('sdk_requires_service_key');
+  });
+
   it('the code wins over the status when they disagree', async () => {
     const client = clientWith(jsonResponse(403, envelope('Plan lapsed', 'api_plan_lapsed')));
     const error = await capture(client.me.get());
