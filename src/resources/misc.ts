@@ -14,7 +14,7 @@ export class Billing {
   }
 }
 
-/** Catalog — the supported services and language runtimes. */
+/** Catalog — the supported services and language runtimes, plus the Docker Hub proxy. */
 export class Catalog {
   readonly #client: APIRequester;
 
@@ -30,6 +30,21 @@ export class Catalog {
   /** `listCatalogRuntimes` — GET /catalog/runtimes */
   listRuntimes(args?: ArgsOf<'listCatalogRuntimes'>, options?: RequestOptions): Promise<ResultOf<'listCatalogRuntimes'>> {
     return this.#client.call('listCatalogRuntimes', args, options);
+  }
+
+  /** `searchDockerHub` — GET /catalog/docker-hub/search */
+  searchDockerHub(args: ArgsOf<'searchDockerHub'>, options?: RequestOptions): Promise<ResultOf<'searchDockerHub'>> {
+    return this.#client.call('searchDockerHub', args, options);
+  }
+
+  /** `listDockerHubTags` — GET /catalog/docker-hub/tags */
+  listDockerHubTags(args: ArgsOf<'listDockerHubTags'>, options?: RequestOptions): Promise<ResultOf<'listDockerHubTags'>> {
+    return this.#client.call('listDockerHubTags', args, options);
+  }
+
+  /** `resolveDockerHubImage` — GET /catalog/docker-hub/resolve */
+  resolveDockerHubImage(args: ArgsOf<'resolveDockerHubImage'>, options?: RequestOptions): Promise<ResultOf<'resolveDockerHubImage'>> {
+    return this.#client.call('resolveDockerHubImage', args, options);
   }
 }
 

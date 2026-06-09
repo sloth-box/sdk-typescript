@@ -1,7 +1,7 @@
 import type { APIRequester, ArgsOf, RequestOptions, ResultOf } from '../core.js';
 import { waitUntilTemplateBaked, type WaiterOptions } from '../waiters.js';
 
-/** Environment templates — CRUD plus AMI rebake. */
+/** Environment templates — CRUD plus AMI rebake and service-image digest checks. */
 export class Templates {
   readonly #client: APIRequester;
 
@@ -37,6 +37,16 @@ export class Templates {
   /** `rebakeTemplate` — POST /organizations/{orgId}/templates/{templateId}/rebake */
   rebake(args: ArgsOf<'rebakeTemplate'>, options?: RequestOptions): Promise<ResultOf<'rebakeTemplate'>> {
     return this.#client.call('rebakeTemplate', args, options);
+  }
+
+  /** `checkTemplateUpdates` — POST /organizations/{orgId}/templates/{templateId}/check-updates */
+  checkUpdates(args: ArgsOf<'checkTemplateUpdates'>, options?: RequestOptions): Promise<ResultOf<'checkTemplateUpdates'>> {
+    return this.#client.call('checkTemplateUpdates', args, options);
+  }
+
+  /** `repinTemplate` — POST /organizations/{orgId}/templates/{templateId}/repin */
+  repin(args: ArgsOf<'repinTemplate'>, options?: RequestOptions): Promise<ResultOf<'repinTemplate'>> {
+    return this.#client.call('repinTemplate', args, options);
   }
 
   /**

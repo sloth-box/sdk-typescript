@@ -63,12 +63,17 @@ type ContentOf<R> = R extends { content: { 'application/json': infer B } }
 
 /**
  * The success payload of an operation: the JSON body of its 2xx response,
- * `string` for the non-JSON (YAML) operation, `void` for 204s.
+ * `string` for the non-JSON (YAML) operation, `void` for 204s. An operation
+ * declaring both a 200 and a 204 (`deleteRegistryCredential`) resolves to
+ * the 200 body or `undefined` — the API returns 204 (no body) on the plain
+ * delete and 200 with a report on `?force=true`.
  */
 export type ResultOf<K extends OperationId> = operations[K]['responses'] extends {
   200: infer R;
 }
-  ? ContentOf<R>
+  ? operations[K]['responses'] extends { 204: unknown }
+    ? ContentOf<R> | undefined
+    : ContentOf<R>
   : operations[K]['responses'] extends { 201: infer R }
     ? ContentOf<R>
     : operations[K]['responses'] extends { 204: unknown }
@@ -150,7 +155,7 @@ export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 /**
  * operationId → `[method, path template]` for every published operation.
- * The mapped type forces this table to cover exactly the spec's 71
+ * The mapped type forces this table to cover exactly the spec's 79
  * operations — adding or removing one in `openapi.json` breaks compilation
  * here until the route is added/removed too.
  */
@@ -164,6 +169,9 @@ export const endpoints: { readonly [K in OperationId]: readonly [HttpMethod, str
   // Catalog
   listCatalogServices: ['GET', '/catalog/services'],
   listCatalogRuntimes: ['GET', '/catalog/runtimes'],
+  searchDockerHub: ['GET', '/catalog/docker-hub/search'],
+  listDockerHubTags: ['GET', '/catalog/docker-hub/tags'],
+  resolveDockerHubImage: ['GET', '/catalog/docker-hub/resolve'],
   // Organizations
   listOrganizations: ['GET', '/organizations'],
   createOrganization: ['POST', '/organizations'],
@@ -198,6 +206,8 @@ export const endpoints: { readonly [K in OperationId]: readonly [HttpMethod, str
   replaceTemplate: ['PATCH', '/organizations/{orgId}/templates/{templateId}'],
   deleteTemplate: ['DELETE', '/organizations/{orgId}/templates/{templateId}'],
   rebakeTemplate: ['POST', '/organizations/{orgId}/templates/{templateId}/rebake'],
+  checkTemplateUpdates: ['POST', '/organizations/{orgId}/templates/{templateId}/check-updates'],
+  repinTemplate: ['POST', '/organizations/{orgId}/templates/{templateId}/repin'],
   // Environments
   listEnvironments: ['GET', '/organizations/{orgId}/environments'],
   launchEnvironment: ['POST', '/organizations/{orgId}/environments'],
@@ -231,6 +241,13 @@ export const endpoints: { readonly [K in OperationId]: readonly [HttpMethod, str
   deleteEnvConfig: ['DELETE', '/organizations/{orgId}/env-config/{key}'],
   setSecretsConfig: ['PUT', '/organizations/{orgId}/secrets-settings'],
   listOrgRepos: ['GET', '/organizations/{orgId}/repos'],
+  // Registry credentials
+  listRegistryCredentials: ['GET', '/organizations/{orgId}/registry-credentials'],
+  createRegistryCredential: ['POST', '/organizations/{orgId}/registry-credentials'],
+  deleteRegistryCredential: [
+    'DELETE',
+    '/organizations/{orgId}/registry-credentials/{credentialId}',
+  ],
   // Webhooks
   listWebhookEndpoints: ['GET', '/organizations/{orgId}/webhooks'],
   createWebhookEndpoint: ['POST', '/organizations/{orgId}/webhooks'],

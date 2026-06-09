@@ -45,7 +45,7 @@ type Invoke = (client: Slothbox, args: any, options?: RequestOptions) => Promise
 
 /**
  * operationId → resource-surface invocation. `Record<OperationId, Invoke>`
- * makes this table provably cover all 71 published operations.
+ * makes this table provably cover all 79 published operations.
  */
 const surface: Record<OperationId, Invoke> = {
   getHealth: (c, a, o) => c.health.get(a, o),
@@ -54,6 +54,9 @@ const surface: Record<OperationId, Invoke> = {
   listMyConnections: (c, a, o) => c.connections.list(a, o),
   listCatalogServices: (c, a, o) => c.catalog.listServices(a, o),
   listCatalogRuntimes: (c, a, o) => c.catalog.listRuntimes(a, o),
+  searchDockerHub: (c, a, o) => c.catalog.searchDockerHub(a, o),
+  listDockerHubTags: (c, a, o) => c.catalog.listDockerHubTags(a, o),
+  resolveDockerHubImage: (c, a, o) => c.catalog.resolveDockerHubImage(a, o),
   listOrganizations: (c, a, o) => c.organizations.list(a, o),
   createOrganization: (c, a, o) => c.organizations.create(a, o),
   getOrganization: (c, a, o) => c.organizations.get(a, o),
@@ -80,6 +83,8 @@ const surface: Record<OperationId, Invoke> = {
   replaceTemplate: (c, a, o) => c.templates.replace(a, o),
   deleteTemplate: (c, a, o) => c.templates.delete(a, o),
   rebakeTemplate: (c, a, o) => c.templates.rebake(a, o),
+  checkTemplateUpdates: (c, a, o) => c.templates.checkUpdates(a, o),
+  repinTemplate: (c, a, o) => c.templates.repin(a, o),
   listEnvironments: (c, a, o) => c.environments.list(a, o),
   launchEnvironment: (c, a, o) => c.environments.launch(a, o),
   getEnvironment: (c, a, o) => c.environments.get(a, o),
@@ -107,6 +112,9 @@ const surface: Record<OperationId, Invoke> = {
   deleteEnvConfig: (c, a, o) => c.secrets.deleteEnvConfig(a, o),
   setSecretsConfig: (c, a, o) => c.secrets.setConfig(a, o),
   listOrgRepos: (c, a, o) => c.secrets.listOrgRepos(a, o),
+  listRegistryCredentials: (c, a, o) => c.registryCredentials.list(a, o),
+  createRegistryCredential: (c, a, o) => c.registryCredentials.create(a, o),
+  deleteRegistryCredential: (c, a, o) => c.registryCredentials.delete(a, o),
   listWebhookEndpoints: (c, a, o) => c.webhooks.listEndpoints(a, o),
   createWebhookEndpoint: (c, a, o) => c.webhooks.createEndpoint(a, o),
   getWebhookEndpoint: (c, a, o) => c.webhooks.getEndpoint(a, o),
@@ -124,9 +132,9 @@ const surface: Record<OperationId, Invoke> = {
 describe('endpoint table vs pinned spec', () => {
   const specOps = operationsFromSpec();
 
-  it('the spec publishes exactly the 71 operations the table covers', () => {
-    expect(specOps).toHaveLength(71);
-    expect(new Set(specOps.map((op) => op.operationId)).size).toBe(71);
+  it('the spec publishes exactly the 79 operations the table covers', () => {
+    expect(specOps).toHaveLength(79);
+    expect(new Set(specOps.map((op) => op.operationId)).size).toBe(79);
     expect(Object.keys(endpoints).sort()).toEqual(specOps.map((op) => op.operationId).sort());
   });
 

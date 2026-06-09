@@ -38,6 +38,7 @@ import { Invites } from './resources/invites.js';
 import { Members } from './resources/members.js';
 import { Billing, Catalog, Connections, GitHub, Health, Me } from './resources/misc.js';
 import { Organizations } from './resources/organizations.js';
+import { RegistryCredentials } from './resources/registry-credentials.js';
 import { RuntimeBundles } from './resources/runtime-bundles.js';
 import { Secrets } from './resources/secrets.js';
 import { SshKeys } from './resources/ssh-keys.js';
@@ -185,6 +186,7 @@ export class Slothbox implements APIRequester {
   readonly me: Me;
   readonly members: Members;
   readonly organizations: Organizations;
+  readonly registryCredentials: RegistryCredentials;
   readonly runtimeBundles: RuntimeBundles;
   readonly secrets: Secrets;
   readonly sshKeys: SshKeys;
@@ -215,6 +217,7 @@ export class Slothbox implements APIRequester {
     this.me = new Me(this);
     this.members = new Members(this);
     this.organizations = new Organizations(this);
+    this.registryCredentials = new RegistryCredentials(this);
     this.runtimeBundles = new RuntimeBundles(this);
     this.secrets = new Secrets(this);
     this.sshKeys = new SshKeys(this);
@@ -232,14 +235,25 @@ export class Slothbox implements APIRequester {
     options?: RequestOptions,
   ): Promise<ResultOf<K>> {
     const [method, template] = endpoints[op];
-    const { query, body, ...pathParams } = (args ?? {}) as {
+    const { query, body, ...params } = (args ?? {}) as {
       query?: Record<string, unknown>;
       body?: unknown;
       [key: string]: unknown;
     };
+    // Split the flattened params on the route template: `{name}` segments are
+    // path parameters; the rest go to the query string. The spec declares the
+    // Docker Hub proxy parameters (`q`, `image`, `tag`) at the path level even
+    // though their routes carry no placeholders — the API reads them from the
+    // query string.
+    const pathParams: Record<string, unknown> = {};
+    const extraQuery: Record<string, unknown> = {};
+    for (const [name, value] of Object.entries(params)) {
+      (template.includes(`{${name}}`) ? pathParams : extraQuery)[name] = value;
+    }
+    const mergedQuery = { ...extraQuery, ...query };
     return this.request(method, template, {
       pathParams: pathParams as Record<string, string>,
-      ...(query !== undefined ? { query } : {}),
+      ...(Object.keys(mergedQuery).length > 0 ? { query: mergedQuery } : {}),
       ...(body !== undefined ? { body } : {}),
       ...(options?.signal !== undefined ? { signal: options.signal } : {}),
       ...(options?.headers !== undefined ? { headers: options.headers } : {}),

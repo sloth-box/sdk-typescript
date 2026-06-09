@@ -100,6 +100,77 @@ describe('representative resource calls', () => {
     expect(url.searchParams.get('kind')).toBe('secret');
   });
 
+  it('catalog.searchDockerHub sends q on the query string (no path placeholder)', async () => {
+    const { client, mock } = clientWith(jsonResponse(200, { results: [], cached: false }));
+    const result = await client.catalog.searchDockerHub({ q: 'grafana' });
+    expect(result.cached).toBe(false);
+    const url = mock.requests[0]!.url;
+    expect(url.pathname).toBe('/catalog/docker-hub/search');
+    expect(url.searchParams.get('q')).toBe('grafana');
+  });
+
+  it('catalog.resolveDockerHubImage sends image and tag on the query string', async () => {
+    const { client, mock } = clientWith(
+      jsonResponse(200, { status: 'ok', digest: 'sha256:6f9f', cached: true }),
+    );
+    const resolved = await client.catalog.resolveDockerHubImage({ image: 'postgres', tag: '16' });
+    expect(resolved.status).toBe('ok');
+    const url = mock.requests[0]!.url;
+    expect(url.pathname).toBe('/catalog/docker-hub/resolve');
+    expect(url.searchParams.get('image')).toBe('postgres');
+    expect(url.searchParams.get('tag')).toBe('16');
+  });
+
+  it('templates.checkUpdates POSTs to /check-updates and returns the digest diff', async () => {
+    const { client, mock } = clientWith(jsonResponse(200, { updates: [] }));
+    const report = await client.templates.checkUpdates({ orgId: 'org_1', templateId: 'tpl_1' });
+    expect(report.updates).toEqual([]);
+    expect(mock.requests[0]!.method).toBe('POST');
+    expect(mock.requests[0]!.url.pathname).toBe(
+      '/organizations/org_1/templates/tpl_1/check-updates',
+    );
+  });
+
+  it('registryCredentials.create POSTs the typed body and returns the 201 credential', async () => {
+    const credential = {
+      credentialId: 'rc_1',
+      label: 'GHCR (acme)',
+      registry: 'ghcr.io',
+      type: 'token',
+      username: 'acme-bot',
+      createdBy: 'usr_1',
+      createdAt: '2026-05-22T14:23:00.000Z',
+      updatedAt: '2026-05-22T14:23:00.000Z',
+    };
+    const { client, mock } = clientWith(jsonResponse(201, { credential }));
+    const created = await client.registryCredentials.create({
+      orgId: 'org_1',
+      body: {
+        type: 'token',
+        label: 'GHCR (acme)',
+        registry: 'ghcr.io',
+        username: 'acme-bot',
+        secret: 'ghp_secret',
+      },
+    });
+    expect(created.credential.credentialId).toBe('rc_1');
+    const request = mock.requests[0]!;
+    expect(request.method).toBe('POST');
+    expect(request.url.pathname).toBe('/organizations/org_1/registry-credentials');
+    expect(JSON.parse(request.body!)).toMatchObject({ type: 'token', registry: 'ghcr.io' });
+  });
+
+  it('registryCredentials.delete resolves to undefined on the plain 204 delete', async () => {
+    const { client, mock } = clientWith(jsonResponse(204, undefined));
+    const result = await client.registryCredentials.delete({
+      orgId: 'org_1',
+      credentialId: 'rc_1',
+    });
+    expect(result).toBeUndefined();
+    expect(mock.requests[0]!.method).toBe('DELETE');
+    expect(mock.requests[0]!.url.pathname).toBe('/organizations/org_1/registry-credentials/rc_1');
+  });
+
   it('awsConnections.getTemplate returns the YAML string', async () => {
     const { client } = clientWith(
       textResponse(200, cloudFormationTemplateYaml, 'application/yaml'),
@@ -113,7 +184,7 @@ describe('representative resource calls', () => {
       user: {
         userId: 'usr_1',
         email: 'oliver@example.com',
-        authMethod: 'apiKey',
+        authMethod: 'apikey',
         mfaEnabled: false,
         hasSeenGuide: true,
       },
@@ -133,6 +204,16 @@ describe('static typing (compile-time assertions)', () => {
     expectTypeOf<ResultOf<'getAwsConnectionTemplate'>>().toEqualTypeOf<string>();
     // 204 ops resolve to void.
     expectTypeOf<ResultOf<'deleteOrganization'>>().toEqualTypeOf<void>();
+    // The one 200-or-204 op resolves to the 200 report or undefined.
+    expectTypeOf<ResultOf<'deleteRegistryCredential'>>().toEqualTypeOf<
+      | { deleted: true; affectedTemplates: { id: string; name: string }[] }
+      | undefined
+    >();
+    // The Docker Hub proxy params are flattened into the args object.
+    expectTypeOf<ArgsOf<'resolveDockerHubImage'>>().toMatchTypeOf<{
+      image: string;
+      tag: string;
+    }>();
     // Lifecycle ops resolve to the Environment schema.
     expectTypeOf<ResultOf<'stopEnvironment'>>().toEqualTypeOf<
       components['schemas']['Environment']

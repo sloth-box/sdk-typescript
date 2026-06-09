@@ -1,7 +1,7 @@
 /**
  * Slothbox API types — GENERATED FILE, DO NOT EDIT BY HAND.
  *
- * Generated from the pinned ../../openapi.json (71 operations) by
+ * Generated from the pinned ../../openapi.json (79 operations) by
  * openapi-typescript v7.13.0 via `npm run generate`.
  *
  * The pinned spec mirrors the published one at
@@ -59,6 +59,66 @@ export interface paths {
          * @description Catalog of language runtimes that projects can declare via the `runtime:` field (e.g. `node:22`). Populates the runtime dropdown in the project form.
          */
         get: operations["listCatalogRuntimes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalog/docker-hub/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search Docker Hub repositories
+         * @description Proxies to Docker Hub search (`/v2/search/repositories/`). Returns up to 20 results sorted with Official images first, then by pull count descending. Results are cached for 30 minutes per query in the Lambda container. Useful for powering the custom-image autocomplete in the template builder.
+         */
+        get: operations["searchDockerHub"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalog/docker-hub/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Docker Hub image tags
+         * @description Returns the 25 most recently pushed tags for a Docker Hub repository, sorted newest first. Digest-only tags (`sha256:…`) are filtered out. Library images (no `/` in the name, e.g. `postgres`) are mapped to the `library/` namespace automatically. Results are cached for 10 minutes per image name.
+         */
+        get: operations["listDockerHubTags"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalog/docker-hub/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Check that a Docker Hub image tag exists
+         * @description Resolves a Docker Hub `image:tag` to its content digest so the template builder can validate a tag early (on the Services step) instead of failing at save. Only Docker Hub images are checked: a non-Hub registry (a host with a `.`/`:` before the first `/`, e.g. `ghcr.io/...` or an ECR URI) returns `unsupported` without any outbound call — those are verified at bake time. Resolved results are cached for 5 minutes per `image:tag`; transient (`error`) results are never cached.
+         */
+        get: operations["resolveDockerHubImage"];
         put?: never;
         post?: never;
         delete?: never;
@@ -156,7 +216,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List your organizations */
+        /**
+         * List your organizations
+         * @description Returns per-org membership summaries (org id/name plus your role, the MFA requirement, and your granted permissions) — the same shape as the `organizations` array on `GET /me`.
+         */
         get: operations["listOrganizations"];
         put?: never;
         /**
@@ -441,6 +504,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/organizations/{orgId}/templates/{templateId}/check-updates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check whether any service images have a newer digest
+         * @description Re-resolves the current tag → digest for every curated catalog service and returns those that differ from the pinned digest (or were never pinned). Read-only — does not mutate any data. Custom/BYO images are skipped. An empty `updates` array means all catalog images are up to date.
+         */
+        post: operations["checkTemplateUpdates"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/organizations/{orgId}/templates/{templateId}/repin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Re-pin all curated service digests to the current registry values
+         * @description Re-resolves each curated catalog service image and, for any whose digest has changed, updates the pinned `resolvedDigest` in DynamoDB and recomputes the bundle hash. A changed hash makes the previous baked AMI stale — trigger a rebake to apply the new pins. Idempotent: re-pinning to the same digest is a no-op per service. Requires `templates:write`.
+         */
+        post: operations["repinTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/organizations/{orgId}/environments": {
         parameters: {
             query?: never;
@@ -457,6 +560,8 @@ export interface paths {
         /**
          * Launch an environment instance ("box") from a template
          * @description Launches an EC2 box in the org's connected AWS account from the template's baked AMI. Requires org membership and an active AWS connection whose runtime bundle is `ready`. Returns immediately with a `pending` box; provisioning runs asynchronously — poll the box until it reaches `running`.
+         *
+         *     Send an `Idempotency-Key` header to make the launch retry-safe: repeating the same key (same org, same request body) within 24 hours replays the original `201` response — marked with an `Idempotency-Replayed: true` response header — instead of provisioning a second box. Concurrent duplicates are race-safe: only one launch happens and the other request receives it. Reusing a key with a *different* request body is rejected with `409`.
          */
         post: operations["launchEnvironment"];
         delete?: never;
@@ -816,6 +921,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/organizations/{orgId}/registry-credentials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List private-registry credentials
+         * @description Any member. Returns metadata only — the registry token is never exposed. Use a credential’s id as `registryCredentialId` on a custom template service.
+         */
+        get: operations["listRegistryCredentials"];
+        put?: never;
+        /**
+         * Add a private-registry credential
+         * @description Requires the settings:write permission (owners hold it implicitly). A `token` credential's secret is written to the org's own AWS account (SSM SecureString) and is never stored in Slothbox; `ecr` credentials carry no secret and use the box's instance role. Requires the org's secrets backend to be configured first.
+         */
+        post: operations["createRegistryCredential"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/organizations/{orgId}/registry-credentials/{credentialId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a private-registry credential
+         * @description Requires the settings:write permission (owners hold it implicitly). Also removes the stored token from the org account (best-effort). Idempotent.
+         *
+         *     If any templates in the org reference this credential the request returns **409 Conflict** with a list of affected templates, rather than silently breaking bake-time docker auth. Pass `?force=true` to delete anyway; the response will be `200 OK` with `{ deleted: true, affectedTemplates: [...] }` so the UI can warn the user which templates are now broken.
+         */
+        delete: operations["deleteRegistryCredential"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/organizations/{orgId}/runtime-bundles": {
         parameters: {
             query?: never;
@@ -1042,6 +1193,18 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @description Standard error envelope returned for any non-2xx response. */
+        Error: {
+            error: {
+                message: string;
+                /**
+                 * @description Stable machine-readable error code (SLO-116). Present on responses where the status code alone is ambiguous (e.g. the launch 409s); most errors carry only a message. New codes may be added over time — treat unknown values as absent.
+                 * @enum {string}
+                 */
+                code?: "seat_ceiling_exceeded" | "no_active_aws_connection" | "template_not_baked" | "environment_terminated" | "environment_launching" | "api_plan_required" | "rate_limited" | "sdk_requires_service_key";
+                issues?: unknown;
+            };
+        };
         User: {
             /** @example a1b2c3d4-… */
             userId: string;
@@ -1049,10 +1212,10 @@ export interface components {
             email: string;
             name?: string;
             /**
-             * @description How the caller authenticated. `apiKey` covers both personal and service-account keys.
+             * @description How the caller authenticated. `apikey` covers both personal and service-account keys.
              * @enum {string}
              */
-            authMethod: "jwt" | "apiKey";
+            authMethod: "jwt" | "apikey";
             /** @description Whether the user has a TOTP authenticator enrolled. */
             mfaEnabled: boolean;
             /** @description Whether the user has seen the first-visit web-app guide. */
@@ -1069,13 +1232,6 @@ export interface components {
             requireMfa: boolean;
             /** @description The caller's granted capabilities in this org (empty for owners). */
             permissions: components["schemas"]["Permission"][];
-        };
-        /** @description Standard error envelope returned for any non-2xx response. */
-        Error: {
-            error: {
-                message: string;
-                issues?: unknown;
-            };
         };
         GithubLink: {
             login: string;
@@ -1208,7 +1364,15 @@ export interface components {
         CreateInviteRequest: {
             /** Format: email */
             email: string;
-            role?: components["schemas"]["Role"] & unknown;
+            /**
+             * @default member
+             * @enum {string}
+             */
+            role: "owner" | "member";
+        };
+        PartialIdleAutoStopPolicy: {
+            enabled?: boolean;
+            timeoutMinutes?: number;
         };
         SleepWindow: {
             /** @description Days the window starts on; 0 = Sunday. */
@@ -1221,17 +1385,15 @@ export interface components {
              */
             end: string;
         };
+        PartialSleepSchedulePolicy: {
+            enabled?: boolean;
+            timezone?: string;
+            windows?: components["schemas"]["SleepWindow"][];
+        };
         /** @description Per-template auto-sleep override (SLO-22); overlays the org policy per-leaf. */
         PartialAutoSleepPolicy: {
-            idleAutoStop?: {
-                enabled?: boolean;
-                timeoutMinutes?: number;
-            };
-            sleepSchedule?: {
-                enabled?: boolean;
-                timezone?: string;
-                windows?: components["schemas"]["SleepWindow"][];
-            };
+            idleAutoStop?: components["schemas"]["PartialIdleAutoStopPolicy"];
+            sleepSchedule?: components["schemas"]["PartialSleepSchedulePolicy"];
         };
         Template: {
             templateId: string;
@@ -1260,17 +1422,52 @@ export interface components {
              */
             updatedAt: string;
         };
-        TemplateServiceInput: {
+        ServiceSource: {
+            /** @enum {string} */
+            kind: "catalog";
             /** @example postgres */
             catalogKey: string;
-            /** @example 16 */
-            version: string;
-            config?: {
-                [key: string]: unknown;
+        } | {
+            /** @enum {string} */
+            kind: "custom";
+            /** @example ghcr.io/acme/db */
+            image: string;
+        };
+        ServiceConfig: {
+            /** @description Non-secret env baked into the image (merged over catalog defaults). */
+            env?: {
+                [key: string]: string;
             };
+            command?: string | string[];
+            ports?: number[];
+            volumes?: string[];
+            resources?: {
+                cpus?: string;
+                mem_limit?: string;
+            };
+        };
+        TemplateServiceInput: {
+            /**
+             * @description Compose service name (unique within the template); defaults from the source.
+             * @example postgres
+             */
+            name?: string;
+            source: components["schemas"]["ServiceSource"];
+            /** @example 16 */
+            tag: string;
+            /** @description Private custom images: the org registry credential to pull with. */
+            registryCredentialId?: string;
+            /** @description Custom images only: records the intent to track a floating (unpinned) tag — non-reproducible. In v1 this flag is recorded intent only: custom images are never digest-resolved by the API regardless of its value (only curated catalog images are pinned at save). */
+            floating?: boolean;
+            config?: components["schemas"]["ServiceConfig"];
         };
         TemplateService: components["schemas"]["TemplateServiceInput"] & {
             serviceId: string;
+            /**
+             * @description Digest pinned at save (`repo@digest`). In v1 only curated catalog images are resolved; custom/BYO images are never resolved by the API and always launch unpinned. Also absent for a catalog image whose resolution failed transiently.
+             * @example sha256:6f9f…
+             */
+            resolvedDigest?: string;
         };
         TemplateHealthCheck: {
             /** @enum {string} */
@@ -1311,6 +1508,13 @@ export interface components {
             template: components["schemas"]["Template"];
             services: components["schemas"]["TemplateService"][];
             projects: components["schemas"]["TemplateProject"][];
+            /**
+             * @description Non-fatal warnings produced during save. Present when one or more curated service images could not be digest-pinned due to a transient registry failure — those services will use a floating tag until the template is saved again.
+             * @example [
+             *       "Could not pin image for service 'postgres' (postgres:16) — digest resolution failed transiently; the service will use a floating tag until next save"
+             *     ]
+             */
+            warnings?: string[];
         };
         TemplateInput: {
             /** @example checkout-stack */
@@ -1353,6 +1557,33 @@ export interface components {
              */
             projectCount: number;
         };
+        ServiceDigestUpdate: {
+            serviceId: string;
+            name: string;
+            /** @example postgres */
+            image: string;
+            /** @example 16 */
+            tag: string;
+            /** @example sha256:abc… */
+            currentDigest?: string;
+            /** @example sha256:def… */
+            newDigest: string;
+        };
+        CheckTemplateUpdatesResponse: {
+            updates: components["schemas"]["ServiceDigestUpdate"][];
+        };
+        RepinTemplateServicesResponse: {
+            /** @description Number of services whose digest was updated. */
+            updated: number;
+            updates: {
+                serviceId: string;
+                name: string;
+                image: string;
+                tag: string;
+                currentDigest?: string;
+                newDigest: string;
+            }[];
+        };
         /** @description Latest host-metrics snapshot reported on a `health` heartbeat. */
         EnvironmentMetricsSample: {
             cpuPct?: number;
@@ -1363,6 +1594,8 @@ export interface components {
             load1?: number;
             netRxBytesPerSec?: number;
             netTxBytesPerSec?: number;
+            diskReadBytesPerSec?: number;
+            diskWriteBytesPerSec?: number;
         };
         Environment: {
             envId: string;
@@ -1442,6 +1675,33 @@ export interface components {
                  */
                 updatedAt: string;
             }[];
+            /** @description Per-service Docker bring-up status reported by the serve agent via service_setup events (SLO-99). `name` is the compose service name, or "compose" for the stack as a whole. */
+            serviceSetup?: {
+                name: string;
+                /** @enum {string} */
+                state: "started" | "ok" | "failed";
+                message?: string;
+                /**
+                 * Format: date-time
+                 * @example 2026-05-22T14:23:00.000Z
+                 */
+                updatedAt: string;
+            }[];
+            /** @description Latest per-container runtime state reported by the serve agent on every health heartbeat (SLO-138). Updated atomically; absent until the first health heartbeat that carries a non-empty services list. */
+            containerHealth?: {
+                /** @example postgres */
+                name: string;
+                /**
+                 * @description Docker container state (running, exited, restarting, …).
+                 * @example running
+                 */
+                state: string;
+                /**
+                 * @description Docker health check result (healthy, unhealthy, starting). Absent when the service has no HEALTHCHECK configured.
+                 * @example healthy
+                 */
+                health?: string;
+            }[];
         };
         LaunchEnvironmentRequest: {
             /** @example 01HXYZ… */
@@ -1464,6 +1724,8 @@ export interface components {
             load1?: number;
             netRxBytesPerSec?: number;
             netTxBytesPerSec?: number;
+            diskReadBytesPerSec?: number;
+            diskWriteBytesPerSec?: number;
         };
         EnvironmentMetricsResponse: {
             envId: string;
@@ -1481,18 +1743,20 @@ export interface components {
             samples: components["schemas"]["EnvironmentMetricsPoint"][];
             latest: components["schemas"]["EnvironmentMetricsPoint"] & (Record<string, never> | null);
         };
+        IdleAutoStopPolicy: {
+            enabled: boolean;
+            timeoutMinutes: number;
+        };
+        SleepSchedulePolicy: {
+            enabled: boolean;
+            /** @example Europe/London */
+            timezone: string;
+            windows: components["schemas"]["SleepWindow"][];
+        };
         AutoSleepPolicy: {
-            idleAutoStop: {
-                enabled: boolean;
-                timeoutMinutes: number;
-            };
-            sleepSchedule: {
-                enabled: boolean;
-                /** @example Europe/London */
-                timezone: string;
-                windows: components["schemas"]["SleepWindow"][];
-            };
-        } | null;
+            idleAutoStop: components["schemas"]["IdleAutoStopPolicy"];
+            sleepSchedule: components["schemas"]["SleepSchedulePolicy"];
+        };
         AuditEvent: {
             eventId: string;
             /**
@@ -1645,6 +1909,66 @@ export interface components {
             templateId?: string;
             environmentId?: string;
         };
+        RegistryCredential: {
+            /** @example rc_01HXYZ… */
+            credentialId: string;
+            /** @example GHCR (acme) */
+            label: string;
+            /** @example ghcr.io */
+            registry: string;
+            /** @enum {string} */
+            type: "token" | "ecr";
+            username?: string;
+            createdBy: string;
+            /**
+             * Format: date-time
+             * @example 2026-05-22T14:23:00.000Z
+             */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @example 2026-05-22T14:23:00.000Z
+             */
+            updatedAt: string;
+        };
+        CreateRegistryCredentialRequest: {
+            /** @enum {string} */
+            type: "token";
+            label: string;
+            /** @example ghcr.io */
+            registry: string;
+            username: string;
+            /** @description Registry token/password — stored in the org account, never returned. */
+            secret: string;
+        } | {
+            /** @enum {string} */
+            type: "ecr";
+            label: string;
+            /** @example 123456789012.dkr.ecr.eu-west-2.amazonaws.com */
+            registry: string;
+        };
+        BakeServiceConstituent: {
+            /** @example postgres */
+            name: string;
+            /** @example postgres */
+            image: string;
+            /** @example 16 */
+            tag: string;
+            /** @example sha256:6f9f… */
+            resolvedDigest?: string;
+            registryCredentialId?: string;
+            environment?: {
+                [key: string]: string;
+            };
+            ports: number[];
+            volumes: string[];
+            namedVolumes: string[];
+            command?: string | string[];
+            resources?: {
+                cpus?: string;
+                mem_limit?: string;
+            };
+        };
         BundleConstituent: {
             key: string;
             version: string;
@@ -1658,7 +1982,7 @@ export interface components {
             amiId?: string;
             failureReason?: string;
             constituents: {
-                services: components["schemas"]["BundleConstituent"][];
+                services: components["schemas"]["BakeServiceConstituent"][];
                 runtimes: components["schemas"]["BundleConstituent"][];
             };
             /**
@@ -1716,11 +2040,17 @@ export interface components {
             includedSeats: number;
             /** @description Seats actually billed = max(0, seatCount − includedSeats). */
             billableSeats: number;
+            /** @description Paid seat ceiling for the current period: seats already billed, kept and swappable within for free. ≥ billableSeats until it resets to the live count at renewal. */
+            paidSeats: number;
             unitPricePence: number;
             /** @description Billable seats × unit price, plus the API plan price when active. */
             totalPence: number;
             /** @enum {string} */
             currency: "gbp";
+            /** @description True when support has set a custom price on any line for this org. */
+            pricingOverridden: boolean;
+            /** @description True when every billable line is comped (£0) — nothing to pay. */
+            comped: boolean;
             /** @description Stripe subscription status, once converted. */
             status?: string;
             /**
@@ -1867,7 +2197,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Array of catalog services with available versions */
+            /** @description Array of curated, image-based catalog services */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1875,14 +2205,31 @@ export interface operations {
                 content: {
                     "application/json": {
                         services: {
+                            /** @example postgres */
                             key: string;
-                            versions: string[];
-                            defaultPort: number;
                             label: string;
                             description: string;
+                            /** @example postgres */
+                            image: string;
+                            /**
+                             * @example [
+                             *       "16",
+                             *       "15"
+                             *     ]
+                             */
+                            tags: string[];
+                            defaultPort: number;
+                            dataPath?: string;
+                            defaultEnv?: {
+                                [key: string]: string;
+                            };
                             configSchema: {
                                 [key: string]: unknown;
                             };
+                            /** @enum {boolean} */
+                            trusted: true;
+                            /** @example postgresql */
+                            logo?: string;
                         }[];
                     };
                 };
@@ -1914,6 +2261,161 @@ export interface operations {
                             description: string;
                         }[];
                     };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    searchDockerHub: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                q: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Matching repositories from Docker Hub */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        results: {
+                            /** @example grafana/grafana */
+                            name: string;
+                            description: string;
+                            /** @example 500000000 */
+                            pullCount: number;
+                            /** @example 12000 */
+                            starCount: number;
+                            /** @description True for Docker Official Images (e.g. postgres, redis). */
+                            isOfficial: boolean;
+                            isVerifiedPublisher: boolean;
+                        }[];
+                        /** @description True when the response came from the 30-minute in-process cache. */
+                        cached: boolean;
+                    };
+                };
+            };
+            /** @description Missing or invalid `q` parameter */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            429: components["responses"]["RateLimited"];
+            /** @description Docker Hub is temporarily unavailable */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listDockerHubTags: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                image: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Available tags for the requested image */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        tags: {
+                            /** @example 11.0.0 */
+                            name: string;
+                            /** @example 2026-03-15T10:00:00Z */
+                            lastUpdated: string;
+                        }[];
+                        /** @description True when the response came from the 10-minute in-process cache. */
+                        cached: boolean;
+                    };
+                };
+            };
+            /** @description Missing or invalid `image` parameter */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            429: components["responses"]["RateLimited"];
+            /** @description Docker Hub is temporarily unavailable */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    resolveDockerHubImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                image: string;
+                tag: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Resolution outcome. `ok` includes the pinned digest; `not_found` means the tag does not exist; `unsupported` means a non-Hub registry (not checked); `error` means Docker Hub could not be reached right now (retry later). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /**
+                         * @description `ok` — exists (digest resolved); `not_found` — bad tag; `unsupported` — non-Hub registry, not checked; `error` — transient Hub failure, try again.
+                         * @enum {string}
+                         */
+                        status: "ok" | "not_found" | "unsupported" | "error";
+                        /**
+                         * @description Pinned digest; present only when status is `ok`.
+                         * @example sha256:6f9f…
+                         */
+                        digest?: string;
+                        /** @description True when the result came from the 5-minute in-process cache. Always false for `unsupported` and `error`. */
+                        cached: boolean;
+                    };
+                };
+            };
+            /** @description Missing or invalid `image`/`tag` parameter */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
                 };
             };
             401: components["responses"]["Unauthorized"];
@@ -2189,7 +2691,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        organizations: components["schemas"]["Organization"][];
+                        organizations: components["schemas"]["OrgMembershipSummary"][];
                     };
                 };
             };
@@ -2204,7 +2706,7 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
                 "application/json": components["schemas"]["CreateOrgRequest"];
             };
@@ -2419,7 +2921,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
                 "application/json": components["schemas"]["SetMemberPermissionsRequest"];
             };
@@ -2476,7 +2978,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
                 "application/json": components["schemas"]["TransferOwnershipRequest"];
             };
@@ -2585,7 +3087,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
                 "application/json": components["schemas"]["SetMemberBindingRequest"];
             };
@@ -2699,7 +3201,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
                 "application/json": components["schemas"]["CreateInviteRequest"];
             };
@@ -2881,7 +3383,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
                 "application/json": components["schemas"]["WriteTemplateBody"];
             };
@@ -2896,7 +3398,7 @@ export interface operations {
                     "application/json": components["schemas"]["TemplateWithChildren"];
                 };
             };
-            /** @description Validation failed */
+            /** @description Validation failed — e.g. schema errors, duplicate service/project names, two services publishing the same host port, a registryCredentialId that does not exist in this organisation, or a curated service image tag that does not exist in the registry. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -3003,7 +3505,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
                 "application/json": components["schemas"]["WriteTemplateBody"];
             };
@@ -3018,7 +3520,7 @@ export interface operations {
                     "application/json": components["schemas"]["TemplateWithChildren"];
                 };
             };
-            /** @description Validation failed */
+            /** @description Validation failed — e.g. schema errors, duplicate service/project names, two services publishing the same host port, a registryCredentialId that does not exist in this organisation, or a curated service image tag that does not exist in the registry. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -3083,6 +3585,74 @@ export interface operations {
             429: components["responses"]["RateLimited"];
         };
     };
+    checkTemplateUpdates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: string;
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Digest diff report */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckTemplateUpdatesResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description Template not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    repinTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: string;
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Re-pin result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RepinTemplateServicesResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description Template not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+        };
+    };
     listEnvironments: {
         parameters: {
             query?: never;
@@ -3121,13 +3691,15 @@ export interface operations {
     launchEnvironment: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Idempotency-Key"?: string;
+            };
             path: {
                 orgId: string;
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
                 "application/json": components["schemas"]["LaunchEnvironmentRequest"];
             };
@@ -3161,7 +3733,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description No active AWS connection, or the template is not baked yet */
+            /** @description No active AWS connection, the template is not baked yet, or the Idempotency-Key was already used with a different request body */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -3408,8 +3980,8 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        policy: components["schemas"]["AutoSleepPolicy"];
-                        defaults: components["schemas"]["AutoSleepPolicy"] & Record<string, never>;
+                        policy: components["schemas"]["AutoSleepPolicy"] | null;
+                        defaults: components["schemas"]["AutoSleepPolicy"];
                     };
                 };
             };
@@ -3435,9 +4007,9 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/json": components["schemas"]["AutoSleepPolicy"] & Record<string, never>;
+                "application/json": components["schemas"]["AutoSleepPolicy"];
             };
         };
         responses: {
@@ -3448,7 +4020,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        policy: components["schemas"]["AutoSleepPolicy"] & Record<string, never>;
+                        policy: components["schemas"]["AutoSleepPolicy"];
                     };
                 };
             };
@@ -3484,10 +4056,10 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
                 "application/json": {
-                    autoSleep: components["schemas"]["PartialAutoSleepPolicy"] & (Record<string, never> | null);
+                    autoSleep: components["schemas"]["PartialAutoSleepPolicy"] | null;
                 };
             };
         };
@@ -3695,7 +4267,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
                 "application/json": components["schemas"]["CreateConnectionRequest"];
             };
@@ -3799,7 +4371,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
                 "application/json": components["schemas"]["VerifyConnectionRequest"];
             };
@@ -3859,7 +4431,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
                 "application/json": components["schemas"]["SetSecretsConfigRequest"];
             };
@@ -3963,7 +4535,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
                 "application/json": components["schemas"]["UpsertEnvConfigRequest"];
             };
@@ -4039,6 +4611,143 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    listRegistryCredentials: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Credentials. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        credentials: components["schemas"]["RegistryCredential"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    createRegistryCredential: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRegistryCredentialRequest"];
+            };
+        };
+        responses: {
+            /** @description Created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        credential: components["schemas"]["RegistryCredential"];
+                    };
+                };
+            };
+            /** @description Validation failed, or no secrets backend configured. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description Caller lacks settings:write. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    deleteRegistryCredential: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orgId: string;
+                credentialId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Force-deleted. One or more templates still reference this credential and will fail to bake. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        deleted: true;
+                        affectedTemplates: {
+                            id: string;
+                            name: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Deleted. No templates reference this credential. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description Caller lacks settings:write. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Credential is in use by one or more templates. Delete those references first, or pass `?force=true` to override. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: string;
+                        templates: {
+                            id: string;
+                            name: string;
+                        }[];
+                    };
                 };
             };
             429: components["responses"]["RateLimited"];
@@ -4203,7 +4912,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
                 "application/json": {
                     /** Format: uri */
@@ -4318,7 +5027,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
                 "application/json": {
                     /** Format: uri */
