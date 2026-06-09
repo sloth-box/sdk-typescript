@@ -1,0 +1,311 @@
+{
+  "description": "Shared webhook-signing test vectors (SLO-128). Generated from the PRODUCTION signing code in sloth-box/api (lib/webhookSigning + lib/webhookPublish). Checked into sloth-box/api (src/lib/webhookSigningVectors.json) and sloth-box/sdk-typescript (src/webhook-signing-vectors.json); both test suites consume it so the signer and the SDK verifier cannot drift apart silently. Do not edit by hand — regenerate with `npm run vectors:webhooks` in sloth-box/api.",
+  "scheme": "Standard Webhooks v1 (svix-compatible): webhook-signature is `v1,base64(HMAC-SHA256(key, `${webhook-id}.${webhook-timestamp}.${rawBody}`))` where key = base64-decode of the secret after stripping the whsec_ prefix. During rotation the header is a space-delimited token list; any v1 match is valid. Receivers reject timestamps more than toleranceSeconds from now (strictly greater than, both directions).",
+  "toleranceSeconds": 300,
+  "cases": [
+    {
+      "name": "valid-basic-single-signature",
+      "description": "A routine delivery signed with the endpoint secret one minute ago.",
+      "secret": "whsec_c2xvdGhib3gtdGVzdC1zZWNyZXQtY3VycmVudC0wMDE=",
+      "body": "{\"id\":\"msg_01VECTOR0PING00000000000NE\",\"type\":\"webhook.ping\",\"timestamp\":\"2025-12-31T23:59:00.000Z\",\"data\":{\"message\":\"This is a test webhook from Slothbox.\",\"endpointId\":\"whep_vector0001\",\"triggeredBy\":\"usr_vector0001\"}}",
+      "headers": {
+        "webhook-id": "msg_01VECTOR0PING00000000000NE",
+        "webhook-timestamp": "1767225540",
+        "webhook-signature": "v1,/loWJGzqC5PSlvaClM/bdq0G4CF3YpYB5Hg5oBhWFgM="
+      },
+      "now": 1767225600,
+      "valid": true,
+      "envelope": true,
+      "signing": {
+        "secrets": [
+          "whsec_c2xvdGhib3gtdGVzdC1zZWNyZXQtY3VycmVudC0wMDE="
+        ],
+        "webhookId": "msg_01VECTOR0PING00000000000NE",
+        "body": "{\"id\":\"msg_01VECTOR0PING00000000000NE\",\"type\":\"webhook.ping\",\"timestamp\":\"2025-12-31T23:59:00.000Z\",\"data\":{\"message\":\"This is a test webhook from Slothbox.\",\"endpointId\":\"whep_vector0001\",\"triggeredBy\":\"usr_vector0001\"}}",
+        "timestamp": 1767225540
+      }
+    },
+    {
+      "name": "valid-secret-accepted-without-prefix",
+      "description": "Same delivery, but the verifier is handed the secret WITHOUT the whsec_ prefix. The reference (svix) implementation strips the prefix only when present and base64-decodes the rest, so this must verify.",
+      "secret": "c2xvdGhib3gtdGVzdC1zZWNyZXQtY3VycmVudC0wMDE=",
+      "body": "{\"id\":\"msg_01VECTOR0PING00000000000NE\",\"type\":\"webhook.ping\",\"timestamp\":\"2025-12-31T23:59:00.000Z\",\"data\":{\"message\":\"This is a test webhook from Slothbox.\",\"endpointId\":\"whep_vector0001\",\"triggeredBy\":\"usr_vector0001\"}}",
+      "headers": {
+        "webhook-id": "msg_01VECTOR0PING00000000000NE",
+        "webhook-timestamp": "1767225540",
+        "webhook-signature": "v1,/loWJGzqC5PSlvaClM/bdq0G4CF3YpYB5Hg5oBhWFgM="
+      },
+      "now": 1767225600,
+      "valid": true,
+      "envelope": true,
+      "signing": {
+        "secrets": [
+          "whsec_c2xvdGhib3gtdGVzdC1zZWNyZXQtY3VycmVudC0wMDE="
+        ],
+        "webhookId": "msg_01VECTOR0PING00000000000NE",
+        "body": "{\"id\":\"msg_01VECTOR0PING00000000000NE\",\"type\":\"webhook.ping\",\"timestamp\":\"2025-12-31T23:59:00.000Z\",\"data\":{\"message\":\"This is a test webhook from Slothbox.\",\"endpointId\":\"whep_vector0001\",\"triggeredBy\":\"usr_vector0001\"}}",
+        "timestamp": 1767225540
+      }
+    },
+    {
+      "name": "valid-unknown-version-token-skipped",
+      "description": "webhook-signature carries an unknown-version token before the good v1 token. Unknown versions are skipped, the v1 token still matches.",
+      "secret": "whsec_c2xvdGhib3gtdGVzdC1zZWNyZXQtY3VycmVudC0wMDE=",
+      "body": "{\"id\":\"msg_01VECTOR0PING00000000000NE\",\"type\":\"webhook.ping\",\"timestamp\":\"2025-12-31T23:59:00.000Z\",\"data\":{\"message\":\"This is a test webhook from Slothbox.\",\"endpointId\":\"whep_vector0001\",\"triggeredBy\":\"usr_vector0001\"}}",
+      "headers": {
+        "webhook-id": "msg_01VECTOR0PING00000000000NE",
+        "webhook-timestamp": "1767225540",
+        "webhook-signature": "v2,bm90LWEtcmVhbC1zaWduYXR1cmU= v1,/loWJGzqC5PSlvaClM/bdq0G4CF3YpYB5Hg5oBhWFgM="
+      },
+      "now": 1767225600,
+      "valid": true,
+      "envelope": true,
+      "signing": null
+    },
+    {
+      "name": "valid-rotation-verifies-with-current-secret",
+      "description": "During a secret rotation overlap, the NEW secret verifies.",
+      "secret": "whsec_c2xvdGhib3gtdGVzdC1zZWNyZXQtY3VycmVudC0wMDE=",
+      "body": "{\"id\":\"msg_01VECTOR0ENVSTARTED000000T\",\"type\":\"environment.started\",\"timestamp\":\"2025-12-31T23:59:30.000Z\",\"data\":{\"resource\":{\"type\":\"environment\",\"id\":\"env_vector0001\",\"name\":\"build-box\"}}}",
+      "headers": {
+        "webhook-id": "msg_01VECTOR0ENVSTARTED000000T",
+        "webhook-timestamp": "1767225570",
+        "webhook-signature": "v1,DbhthOKdNLvMVRd5gjCrZPIM1ia7XeWIBxsvnlDCMJU= v1,ZiwTa/+wBvW6CCJVza7YbNEQRoDSmFvNpFyzX+OH6as="
+      },
+      "now": 1767225600,
+      "valid": true,
+      "envelope": true,
+      "signing": {
+        "secrets": [
+          "whsec_c2xvdGhib3gtdGVzdC1zZWNyZXQtY3VycmVudC0wMDE=",
+          "whsec_c2xvdGhib3gtdGVzdC1zZWNyZXQtcHJldmlvdXMtMDE="
+        ],
+        "webhookId": "msg_01VECTOR0ENVSTARTED000000T",
+        "body": "{\"id\":\"msg_01VECTOR0ENVSTARTED000000T\",\"type\":\"environment.started\",\"timestamp\":\"2025-12-31T23:59:30.000Z\",\"data\":{\"resource\":{\"type\":\"environment\",\"id\":\"env_vector0001\",\"name\":\"build-box\"}}}",
+        "timestamp": 1767225570
+      }
+    },
+    {
+      "name": "valid-rotation-verifies-with-previous-secret",
+      "description": "During a secret rotation overlap, the OLD secret also verifies.",
+      "secret": "whsec_c2xvdGhib3gtdGVzdC1zZWNyZXQtcHJldmlvdXMtMDE=",
+      "body": "{\"id\":\"msg_01VECTOR0ENVSTARTED000000T\",\"type\":\"environment.started\",\"timestamp\":\"2025-12-31T23:59:30.000Z\",\"data\":{\"resource\":{\"type\":\"environment\",\"id\":\"env_vector0001\",\"name\":\"build-box\"}}}",
+      "headers": {
+        "webhook-id": "msg_01VECTOR0ENVSTARTED000000T",
+        "webhook-timestamp": "1767225570",
+        "webhook-signature": "v1,DbhthOKdNLvMVRd5gjCrZPIM1ia7XeWIBxsvnlDCMJU= v1,ZiwTa/+wBvW6CCJVza7YbNEQRoDSmFvNpFyzX+OH6as="
+      },
+      "now": 1767225600,
+      "valid": true,
+      "envelope": true,
+      "signing": {
+        "secrets": [
+          "whsec_c2xvdGhib3gtdGVzdC1zZWNyZXQtY3VycmVudC0wMDE=",
+          "whsec_c2xvdGhib3gtdGVzdC1zZWNyZXQtcHJldmlvdXMtMDE="
+        ],
+        "webhookId": "msg_01VECTOR0ENVSTARTED000000T",
+        "body": "{\"id\":\"msg_01VECTOR0ENVSTARTED000000T\",\"type\":\"environment.started\",\"timestamp\":\"2025-12-31T23:59:30.000Z\",\"data\":{\"resource\":{\"type\":\"environment\",\"id\":\"env_vector0001\",\"name\":\"build-box\"}}}",
+        "timestamp": 1767225570
+      }
+    },
+    {
+      "name": "valid-timestamp-at-old-tolerance-edge",
+      "description": "webhook-timestamp is EXACTLY the tolerance (300s) old. The check is strictly-greater-than, so the edge is still accepted.",
+      "secret": "whsec_c2xvdGhib3gtdGVzdC1zZWNyZXQtY3VycmVudC0wMDE=",
+      "body": "{\"id\":\"msg_01VECTOR0DISABLED00000000D\",\"type\":\"webhook.endpoint.disabled\",\"timestamp\":\"2025-12-31T23:55:00.000Z\",\"data\":{\"endpointId\":\"whep_vector0001\",\"url\":\"https://example.com/hooks/slothbox\",\"reason\":\"Endpoint auto-disabled after sustained delivery failures\"}}",
+      "headers": {
+        "webhook-id": "msg_01VECTOR0DISABLED00000000D",
+        "webhook-timestamp": "1767225300",
+        "webhook-signature": "v1,8qdrKyRLrNUp8ETpZnhMMncKPWNbx84cCinyIZ54tQU="
+      },
+      "now": 1767225600,
+      "valid": true,
+      "envelope": true,
+      "signing": {
+        "secrets": [
+          "whsec_c2xvdGhib3gtdGVzdC1zZWNyZXQtY3VycmVudC0wMDE="
+        ],
+        "webhookId": "msg_01VECTOR0DISABLED00000000D",
+        "body": "{\"id\":\"msg_01VECTOR0DISABLED00000000D\",\"type\":\"webhook.endpoint.disabled\",\"timestamp\":\"2025-12-31T23:55:00.000Z\",\"data\":{\"endpointId\":\"whep_vector0001\",\"url\":\"https://example.com/hooks/slothbox\",\"reason\":\"Endpoint auto-disabled after sustained delivery failures\"}}",
+        "timestamp": 1767225300
+      }
+    },
+    {
+      "name": "valid-signature-but-not-an-envelope",
+      "description": "Correctly signed JSON that is not a webhook envelope. verifyWebhook succeeds; parseWebhookEvent (envelope narrowing) must reject it.",
+      "secret": "whsec_c2xvdGhib3gtdGVzdC1zZWNyZXQtY3VycmVudC0wMDE=",
+      "body": "[1,2,3]",
+      "headers": {
+        "webhook-id": "msg_01VECTOR0NOTENVELOPE0000X",
+        "webhook-timestamp": "1767225590",
+        "webhook-signature": "v1,oNqkP/auL/6YH9/6L6SgzD/+KF7xsw+XquYspAD+OIE="
+      },
+      "now": 1767225600,
+      "valid": true,
+      "envelope": false,
+      "signing": {
+        "secrets": [
+          "whsec_c2xvdGhib3gtdGVzdC1zZWNyZXQtY3VycmVudC0wMDE="
+        ],
+        "webhookId": "msg_01VECTOR0NOTENVELOPE0000X",
+        "body": "[1,2,3]",
+        "timestamp": 1767225590
+      }
+    },
+    {
+      "name": "invalid-tampered-body",
+      "description": "The signature covers the exact transmitted bytes. The same JSON re-serialized with different whitespace must NOT verify (the classic express.json() re-serialization failure mode).",
+      "secret": "whsec_c2xvdGhib3gtdGVzdC1zZWNyZXQtY3VycmVudC0wMDE=",
+      "body": "{\n  \"id\": \"msg_01VECTOR0PING00000000000NE\",\n  \"type\": \"webhook.ping\",\n  \"timestamp\": \"2025-12-31T23:59:00.000Z\",\n  \"data\": {\n    \"message\": \"This is a test webhook from Slothbox.\",\n    \"endpointId\": \"whep_vector0001\",\n    \"triggeredBy\": \"usr_vector0001\"\n  }\n}",
+      "headers": {
+        "webhook-id": "msg_01VECTOR0PING00000000000NE",
+        "webhook-timestamp": "1767225540",
+        "webhook-signature": "v1,/loWJGzqC5PSlvaClM/bdq0G4CF3YpYB5Hg5oBhWFgM="
+      },
+      "now": 1767225600,
+      "valid": false,
+      "envelope": true,
+      "error": "no_matching_signature",
+      "signing": {
+        "secrets": [
+          "whsec_c2xvdGhib3gtdGVzdC1zZWNyZXQtY3VycmVudC0wMDE="
+        ],
+        "webhookId": "msg_01VECTOR0PING00000000000NE",
+        "body": "{\"id\":\"msg_01VECTOR0PING00000000000NE\",\"type\":\"webhook.ping\",\"timestamp\":\"2025-12-31T23:59:00.000Z\",\"data\":{\"message\":\"This is a test webhook from Slothbox.\",\"endpointId\":\"whep_vector0001\",\"triggeredBy\":\"usr_vector0001\"}}",
+        "timestamp": 1767225540
+      }
+    },
+    {
+      "name": "invalid-version-prefix-rewritten",
+      "description": "The only signature token carries version v2. Unknown versions are skipped, leaving no token to match.",
+      "secret": "whsec_c2xvdGhib3gtdGVzdC1zZWNyZXQtY3VycmVudC0wMDE=",
+      "body": "{\"id\":\"msg_01VECTOR0PING00000000000NE\",\"type\":\"webhook.ping\",\"timestamp\":\"2025-12-31T23:59:00.000Z\",\"data\":{\"message\":\"This is a test webhook from Slothbox.\",\"endpointId\":\"whep_vector0001\",\"triggeredBy\":\"usr_vector0001\"}}",
+      "headers": {
+        "webhook-id": "msg_01VECTOR0PING00000000000NE",
+        "webhook-timestamp": "1767225540",
+        "webhook-signature": "v2,/loWJGzqC5PSlvaClM/bdq0G4CF3YpYB5Hg5oBhWFgM="
+      },
+      "now": 1767225600,
+      "valid": false,
+      "envelope": true,
+      "error": "no_matching_signature",
+      "signing": null
+    },
+    {
+      "name": "invalid-missing-signature-header",
+      "description": "webhook-signature is absent entirely.",
+      "secret": "whsec_c2xvdGhib3gtdGVzdC1zZWNyZXQtY3VycmVudC0wMDE=",
+      "body": "{\"id\":\"msg_01VECTOR0PING00000000000NE\",\"type\":\"webhook.ping\",\"timestamp\":\"2025-12-31T23:59:00.000Z\",\"data\":{\"message\":\"This is a test webhook from Slothbox.\",\"endpointId\":\"whep_vector0001\",\"triggeredBy\":\"usr_vector0001\"}}",
+      "headers": {
+        "webhook-id": "msg_01VECTOR0PING00000000000NE",
+        "webhook-timestamp": "1767225540"
+      },
+      "now": 1767225600,
+      "valid": false,
+      "envelope": true,
+      "error": "missing_headers",
+      "signing": null
+    },
+    {
+      "name": "invalid-garbage-timestamp",
+      "description": "webhook-timestamp is not a number.",
+      "secret": "whsec_c2xvdGhib3gtdGVzdC1zZWNyZXQtY3VycmVudC0wMDE=",
+      "body": "{\"id\":\"msg_01VECTOR0PING00000000000NE\",\"type\":\"webhook.ping\",\"timestamp\":\"2025-12-31T23:59:00.000Z\",\"data\":{\"message\":\"This is a test webhook from Slothbox.\",\"endpointId\":\"whep_vector0001\",\"triggeredBy\":\"usr_vector0001\"}}",
+      "headers": {
+        "webhook-id": "msg_01VECTOR0PING00000000000NE",
+        "webhook-timestamp": "not-a-number",
+        "webhook-signature": "v1,/loWJGzqC5PSlvaClM/bdq0G4CF3YpYB5Hg5oBhWFgM="
+      },
+      "now": 1767225600,
+      "valid": false,
+      "envelope": true,
+      "error": "invalid_timestamp",
+      "signing": null
+    },
+    {
+      "name": "invalid-malformed-signature-token",
+      "description": "The signature token is not base64 at all; it simply never matches.",
+      "secret": "whsec_c2xvdGhib3gtdGVzdC1zZWNyZXQtY3VycmVudC0wMDE=",
+      "body": "{\"id\":\"msg_01VECTOR0PING00000000000NE\",\"type\":\"webhook.ping\",\"timestamp\":\"2025-12-31T23:59:00.000Z\",\"data\":{\"message\":\"This is a test webhook from Slothbox.\",\"endpointId\":\"whep_vector0001\",\"triggeredBy\":\"usr_vector0001\"}}",
+      "headers": {
+        "webhook-id": "msg_01VECTOR0PING00000000000NE",
+        "webhook-timestamp": "1767225540",
+        "webhook-signature": "v1,!!!not-base64!!!"
+      },
+      "now": 1767225600,
+      "valid": false,
+      "envelope": true,
+      "error": "no_matching_signature",
+      "signing": null
+    },
+    {
+      "name": "invalid-wrong-secret",
+      "description": "Signed with a different secret than the verifier holds.",
+      "secret": "whsec_c2xvdGhib3gtdGVzdC1zZWNyZXQtY3VycmVudC0wMDE=",
+      "body": "{\"id\":\"msg_01VECTOR0PING00000000000NE\",\"type\":\"webhook.ping\",\"timestamp\":\"2025-12-31T23:59:00.000Z\",\"data\":{\"message\":\"This is a test webhook from Slothbox.\",\"endpointId\":\"whep_vector0001\",\"triggeredBy\":\"usr_vector0001\"}}",
+      "headers": {
+        "webhook-id": "msg_01VECTOR0PING00000000000NE",
+        "webhook-timestamp": "1767225540",
+        "webhook-signature": "v1,TjFjrUd2RUzSNCnw1JwYr3rK+wjfz63ZsfoGM5PSERQ="
+      },
+      "now": 1767225600,
+      "valid": false,
+      "envelope": true,
+      "error": "no_matching_signature",
+      "signing": {
+        "secrets": [
+          "whsec_c2xvdGhib3gtdGVzdC1zZWNyZXQtd3JvbmctMDAwMDE="
+        ],
+        "webhookId": "msg_01VECTOR0PING00000000000NE",
+        "body": "{\"id\":\"msg_01VECTOR0PING00000000000NE\",\"type\":\"webhook.ping\",\"timestamp\":\"2025-12-31T23:59:00.000Z\",\"data\":{\"message\":\"This is a test webhook from Slothbox.\",\"endpointId\":\"whep_vector0001\",\"triggeredBy\":\"usr_vector0001\"}}",
+        "timestamp": 1767225540
+      }
+    },
+    {
+      "name": "invalid-timestamp-too-old",
+      "description": "Correctly signed, but webhook-timestamp is 301s old — one second past the 5-minute replay tolerance.",
+      "secret": "whsec_c2xvdGhib3gtdGVzdC1zZWNyZXQtY3VycmVudC0wMDE=",
+      "body": "{\"id\":\"msg_01VECTOR0ENVSTARTED000000T\",\"type\":\"environment.started\",\"timestamp\":\"2025-12-31T23:59:30.000Z\",\"data\":{\"resource\":{\"type\":\"environment\",\"id\":\"env_vector0001\",\"name\":\"build-box\"}}}",
+      "headers": {
+        "webhook-id": "msg_01VECTOR0ENVSTARTED000000T",
+        "webhook-timestamp": "1767225299",
+        "webhook-signature": "v1,Rl5U6ZmR4J5n1OYPeWfA33dIoeCSDTr3GVLIVIMWOPk="
+      },
+      "now": 1767225600,
+      "valid": false,
+      "envelope": true,
+      "error": "timestamp_too_old",
+      "signing": {
+        "secrets": [
+          "whsec_c2xvdGhib3gtdGVzdC1zZWNyZXQtY3VycmVudC0wMDE="
+        ],
+        "webhookId": "msg_01VECTOR0ENVSTARTED000000T",
+        "body": "{\"id\":\"msg_01VECTOR0ENVSTARTED000000T\",\"type\":\"environment.started\",\"timestamp\":\"2025-12-31T23:59:30.000Z\",\"data\":{\"resource\":{\"type\":\"environment\",\"id\":\"env_vector0001\",\"name\":\"build-box\"}}}",
+        "timestamp": 1767225299
+      }
+    },
+    {
+      "name": "invalid-timestamp-in-future",
+      "description": "Correctly signed, but webhook-timestamp is 301s in the future — beyond the allowed clock skew.",
+      "secret": "whsec_c2xvdGhib3gtdGVzdC1zZWNyZXQtY3VycmVudC0wMDE=",
+      "body": "{\"id\":\"msg_01VECTOR0ENVSTARTED000000T\",\"type\":\"environment.started\",\"timestamp\":\"2025-12-31T23:59:30.000Z\",\"data\":{\"resource\":{\"type\":\"environment\",\"id\":\"env_vector0001\",\"name\":\"build-box\"}}}",
+      "headers": {
+        "webhook-id": "msg_01VECTOR0ENVSTARTED000000T",
+        "webhook-timestamp": "1767225901",
+        "webhook-signature": "v1,eMjj6GNpomhiO5buDf0sNq8gb7LFFoG60RQWYQpv26Y="
+      },
+      "now": 1767225600,
+      "valid": false,
+      "envelope": true,
+      "error": "timestamp_too_new",
+      "signing": {
+        "secrets": [
+          "whsec_c2xvdGhib3gtdGVzdC1zZWNyZXQtY3VycmVudC0wMDE="
+        ],
+        "webhookId": "msg_01VECTOR0ENVSTARTED000000T",
+        "body": "{\"id\":\"msg_01VECTOR0ENVSTARTED000000T\",\"type\":\"environment.started\",\"timestamp\":\"2025-12-31T23:59:30.000Z\",\"data\":{\"resource\":{\"type\":\"environment\",\"id\":\"env_vector0001\",\"name\":\"build-box\"}}}",
+        "timestamp": 1767225901
+      }
+    }
+  ]
+}

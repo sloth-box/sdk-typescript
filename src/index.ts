@@ -1,10 +1,13 @@
 /**
  * @slothbox/sdk — Official TypeScript SDK for the Slothbox API.
  *
- * This package is a scaffold (SLO-124). The real client runtime lands in
- * SLO-127; until then everything here is a placeholder and the package is
- * not published to npm.
+ * The webhook toolkit (signature verification + typed events, SLO-128) is
+ * implemented — see ./webhooks. The client runtime lands in SLO-127; until
+ * then the client below is a placeholder and the package is not published
+ * to npm.
  */
+
+export * from './webhooks.js';
 
 /**
  * The version of this package. Kept in sync with `package.json` (enforced by
