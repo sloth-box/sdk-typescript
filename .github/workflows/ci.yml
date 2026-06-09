@@ -26,6 +26,18 @@ jobs:
 
       - run: npm ci
 
+      # src/generated/ is produced from the pinned openapi.json by an exactly
+      # pinned generator, so regeneration is deterministic: any diff here
+      # means someone edited the spec (or generated output) without running
+      # `npm run generate`, or hand-edited a generated file. Fail loudly.
+      - name: Check generated types are in sync with openapi.json
+        run: |
+          npm run generate
+          if ! git diff --exit-code -- src/generated || [ -n "$(git status --porcelain -- src/generated)" ]; then
+            echo "::error::src/generated is stale — run 'npm run generate' and commit the result."
+            exit 1
+          fi
+
       # Lint = strict tsc with no emit, same convention as sloth-box/api
       # (no eslint/prettier in this org's TypeScript repos).
       - run: npm run lint

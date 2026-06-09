@@ -156,6 +156,7 @@ silently. Never edit the file by hand.
 
 ```sh
 npm ci
+npm run generate       # regenerate src/generated/ from the pinned openapi.json
 npm run lint           # strict tsc, no emit
 npm test               # vitest
 npm run build          # tsup → dist/ (ESM + CJS + .d.ts/.d.cts)
@@ -167,3 +168,43 @@ npm run check:package  # publint + arethetypeswrong against the packed tarball
 Versions, changelog, and npm publishing are fully automated from conventional
 commits (release-please + npm trusted publishing with provenance). See
 [RELEASING.md](./RELEASING.md).
+
+## Generated types
+
+`src/generated/api.ts` is generated from the **pinned** `openapi.json` checked
+into this repo (so builds are reproducible — never from a network fetch at
+build time) by [`openapi-typescript`](https://github.com/openapi-ts/openapi-typescript),
+pinned to an exact version in `devDependencies`. Generation is deterministic:
+the same spec and generator version produce byte-identical output, and CI
+regenerates on every run and fails if the committed output is stale.
+
+Method/type naming comes straight from the spec's `operationId`s (the
+generated `operations` interface is keyed by them); `npm run generate` hard-fails
+if any published operation is missing one or duplicates another. Never edit
+`src/generated/` by hand. The core client (SLO-127) builds its conventions
+layer on these types.
+
+### Updating the pinned spec
+
+The spec is published by `sloth-box/api`'s deploy workflow on every push to
+its `main`:
+
+```sh
+curl -fsSL https://slothbox-api-publicassetsbucket-mjdmnco0nf5t.s3.eu-west-2.amazonaws.com/openapi.json \
+  -o openapi.json
+npm run generate
+git diff src/generated   # review the API-surface diff, not just the spec diff
+git add openapi.json src/generated
+git commit -m "chore: refresh pinned OpenAPI spec"
+```
+
+Always commit `openapi.json` and `src/generated/` together — CI rejects one
+without the other.
+
+> **Until the api spec stack (SLO-113/114/115) merges:** the published spec at
+> the URL above does not yet carry `operationId`s, so `npm run generate` will
+> (correctly) refuse it. The spec pinned here was taken from that unmerged
+> branch; refresh from the published URL once the stack lands.
+
+This manual procedure is interim — SLO-130 adds an automated regeneration
+loop that watches the published spec and opens the refresh PR for you.
