@@ -172,9 +172,11 @@ exhausted `RateLimitError` tells you how many attempts were made and the last
 
 #### Rate limits are a normal operating condition
 
-Service-account keys get a much higher per-key request budget, but the **org-scoped tiers still
-bite** under automation: compute operations are limited to 10/min **and
-60/hr** per org, assume-role to 20/min, GitHub operations to 30/min. A queue
+Service-account keys get a much higher per-key request budget than personal
+keys, but the **org-scoped tiers still bite** under automation: compute
+operations are limited to 10/min **and 60/hr** per org, assume-role to
+20/min, GitHub operations to 30/min (see the
+[rate-limiting docs](https://docs.slothbox.dev/rate-limiting)). A queue
 worker fanning out launches will see 429s in routine operation — that is what
 this middleware is for. One caveat: when the hourly compute tier trips, the
 API can send a `Retry-After` far above the 30 s backoff cap; retries will
