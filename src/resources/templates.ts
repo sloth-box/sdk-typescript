@@ -1,4 +1,5 @@
 import type { APIRequester, ArgsOf, RequestOptions, ResultOf } from '../core.js';
+import { waitUntilTemplateBaked, type WaiterOptions } from '../waiters.js';
 
 /** Environment templates — CRUD plus AMI rebake. */
 export class Templates {
@@ -36,5 +37,15 @@ export class Templates {
   /** `rebakeTemplate` — POST /organizations/{orgId}/templates/{templateId}/rebake */
   rebake(args: ArgsOf<'rebakeTemplate'>, options?: RequestOptions): Promise<ResultOf<'rebakeTemplate'>> {
     return this.#client.call('rebakeTemplate', args, options);
+  }
+
+  /**
+   * Poll `getTemplate` until its runtime bundle is baked (`ready`) — the
+   * "safe launch" gate after `create`/`rebake` (SLO-135 waiter).
+   * `bundle_failed` and `draft` throw `WaiterStateError` immediately; the
+   * overall deadline (default 20 minutes) throws `WaiterTimeoutError`.
+   */
+  waitUntilBaked(args: ArgsOf<'getTemplate'>, options?: WaiterOptions): Promise<ResultOf<'getTemplate'>> {
+    return waitUntilTemplateBaked(this.#client, args, options);
   }
 }

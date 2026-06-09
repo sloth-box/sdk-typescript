@@ -60,3 +60,25 @@ export type { RetryContext } from './retry.js';
 
 // Generated OpenAPI types (schemas under `components['schemas']`)
 export type { components, operations, paths } from './generated/api.js';
+
+// Lifecycle waiters & safe launch (SLO-135)
+export {
+  DEFAULT_BAKE_TIMEOUT_MS,
+  DEFAULT_ENVIRONMENT_TIMEOUT_MS,
+  DEFAULT_MAX_POLL_INTERVAL_MS,
+  DEFAULT_POLL_INTERVAL_MS,
+  POLL_BACKOFF_FACTOR,
+  WaiterStateError,
+  WaiterTimeoutError,
+  launchEnvironmentAndWait,
+  waitUntilEnvironmentReady,
+  waitUntilEnvironmentStopped,
+  waitUntilTemplateBaked,
+} from './waiters.js';
+export type {
+  EnvironmentStatus,
+  LaunchAndWaitOptions,
+  TemplateStatus,
+  WaiterOptions,
+  WaiterResource,
+} from './waiters.js';

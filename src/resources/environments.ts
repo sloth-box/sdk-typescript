@@ -5,6 +5,13 @@ import type {
   RequestOptions,
   ResultOf,
 } from '../core.js';
+import {
+  launchEnvironmentAndWait,
+  waitUntilEnvironmentReady,
+  waitUntilEnvironmentStopped,
+  type LaunchAndWaitOptions,
+  type WaiterOptions,
+} from '../waiters.js';
 
 /**
  * Environments ("boxes") — launch, lifecycle, metrics, and the org's
@@ -79,5 +86,34 @@ export class Environments {
   /** `setTemplateAutoSleep` — PUT /organizations/{orgId}/templates/{templateId}/auto-sleep */
   setTemplateAutoSleep(args: ArgsOf<'setTemplateAutoSleep'>, options?: RequestOptions): Promise<ResultOf<'setTemplateAutoSleep'>> {
     return this.#client.call('setTemplateAutoSleep', args, options);
+  }
+
+  /**
+   * Poll `getEnvironment` until the box is `running` (SLO-135 waiter).
+   * Terminal statuses (`failed`, `terminated`, …) throw `WaiterStateError`
+   * immediately; the overall deadline throws `WaiterTimeoutError`.
+   *
+   * Auto-sleep caveat: a ready box can later be stopped by the org's idle /
+   * scheduled auto-sleep policy — "ready once" is not "running forever". See
+   * the `waiters` module docs.
+   */
+  waitUntilReady(args: ArgsOf<'getEnvironment'>, options?: WaiterOptions): Promise<ResultOf<'getEnvironment'>> {
+    return waitUntilEnvironmentReady(this.#client, args, options);
+  }
+
+  /** Poll `getEnvironment` until the box is `stopped` (SLO-135 waiter). */
+  waitUntilStopped(args: ArgsOf<'getEnvironment'>, options?: WaiterOptions): Promise<ResultOf<'getEnvironment'>> {
+    return waitUntilEnvironmentStopped(this.#client, args, options);
+  }
+
+  /**
+   * Safe launch: `launch` + `waitUntilReady` (SLO-135). Always sends an
+   * `Idempotency-Key` (auto-generated via `crypto.randomUUID()` when
+   * `options.idempotencyKey` is omitted), which is what makes the launch POST
+   * retry-safe — and eligible for the SDK retry middleware (SLO-133), which
+   * only retries POSTs that carry an idempotency key.
+   */
+  launchAndWait(args: ArgsOf<'launchEnvironment'>, options?: LaunchAndWaitOptions): Promise<ResultOf<'getEnvironment'>> {
+    return launchEnvironmentAndWait(this.#client, args, options);
   }
 }

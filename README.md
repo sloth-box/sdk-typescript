@@ -199,6 +199,70 @@ for await (const event of page) {
 }
 ```
 
+### Lifecycle waiters & safe launch
+
+Launching a box or baking a template is asynchronous on the API side — the
+SDK ships waiters that encode each lifecycle so you don't have to:
+
+```ts
+// "launch a box and use it when ready", in one call:
+const box = await slothbox.environments.launchAndWait({
+  orgId,
+  body: { templateId, name: 'ci-runner' },
+});
+
+// or compose the pieces yourself:
+await slothbox.templates.waitUntilBaked({ orgId, templateId });   // after create/rebake
+await slothbox.environments.waitUntilReady({ orgId, envId });     // after launch/start
+await slothbox.environments.waitUntilStopped({ orgId, envId });   // after stop
+```
+
+The status graphs the waiters encode (from the pinned spec):
+
+| Resource | Transitional (keeps polling) | Target | Terminal → `WaiterStateError` |
+| --- | --- | --- | --- |
+| `waitUntilReady` | `pending`, `provisioning` | `running` | `stopping`, `stopped`, `terminating`, `terminated`, `failed` |
+| `waitUntilStopped` | `pending`, `provisioning`, `running`, `stopping` | `stopped` | `terminating`, `terminated`, `failed` |
+| `waitUntilBaked` | `bundle_building` | `ready` | `bundle_failed`, `draft` (no bake in flight) |
+
+Landing in a terminal state throws a `WaiterStateError` **immediately**
+(carrying the observed `status`, plus the environment's `statusReason` when
+the API sent one) instead of spinning to the deadline. Exhausting the overall
+timeout throws a `WaiterTimeoutError` (carrying `lastStatus`); a final poll is
+always made at the deadline first. Every waiter takes an `AbortSignal` via
+`options.signal`.
+
+**Polling pace.** Launches and bakes are limited by an org-wide *compute* rate
+tier (10 requests/min, 60/hr) because they drive real EC2 in your AWS account,
+and the status reads assume-role into that same account. Waiters therefore
+poll every **7s, backing off ×1.5 toward a 30s ceiling** — at most 5 polls in
+the first minute and ~24 reads across a full default 10-minute wait, leaving
+the org's compute budget for actual launches. Defaults: 10-minute timeout for
+environment waiters (real launches usually take 2–4 minutes), 20 minutes for
+`waitUntilBaked` (bakes usually take 4–6, but AMI capture can run long). All
+overridable per call via `timeoutMs` / `pollIntervalMs` / `maxPollIntervalMs`.
+
+**`launchAndWait` and idempotency.** The launch POST always carries an
+`Idempotency-Key` header — auto-generated with `crypto.randomUUID()` when you
+don't pass `options.idempotencyKey`. Retrying a launch with the same key
+returns the original box instead of starting a duplicate, and the key is what
+makes the POST safe for the SDK's retry middleware (SLO-133), which only
+retries POSTs that carry one. Pass your own stable key to deduplicate
+launches across process restarts.
+
+**Auto-sleep: "ready once" ≠ "running forever".** A box that
+`waitUntilReady` resolved can later be stopped by the org's auto-sleep policy
+(idle auto-stop and scheduled sleep windows). Treat a resolved waiter as a
+statement about *now*: re-check with `environments.get()` before relying on a
+box you launched a while ago, or subscribe to `environment.stopped` webhook
+events (`slothbox.webhooks`) to observe sleeps as they happen — and
+`environments.start()` + `waitUntilReady` to wake the box back up.
+
+The standalone functions (`waitUntilEnvironmentReady`,
+`waitUntilEnvironmentStopped`, `waitUntilTemplateBaked`,
+`launchEnvironmentAndWait`) are also exported for use without the resource
+surface.
+
 ## Verifying webhooks
 
 Slothbox signs every webhook delivery with the open
