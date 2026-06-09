@@ -102,6 +102,13 @@ export interface RequestOptions {
   signal?: AbortSignal;
   /** Extra headers, merged over the SDK's defaults (case-insensitive). */
   headers?: Record<string, string>;
+  /**
+   * Override the client's `maxRetries` for this request — the number of
+   * automatic retries after the initial attempt (0 disables retries).
+   * Only applies to requests the retry policy may retry at all; POSTs
+   * without an `Idempotency-Key` are never retried (see `src/retry.ts`).
+   */
+  maxRetries?: number;
 }
 
 /**

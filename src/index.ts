@@ -54,5 +54,13 @@ export type { APIErrorDetails, SlothboxErrorCode } from './errors.js';
 // Pagination
 export { CursorPage } from './pagination.js';
 
+// Retry & rate-limit middleware (SLO-133)
+export {
+  DEFAULT_MAX_RETRIES,
+  DEFAULT_RETRY_BASE_DELAY_MS,
+  DEFAULT_RETRY_MAX_DELAY_MS,
+} from './retry.js';
+export type { RetryContext } from './retry.js';
+
 // Generated OpenAPI types (schemas under `components['schemas']`)
 export type { components, operations, paths } from './generated/api.js';

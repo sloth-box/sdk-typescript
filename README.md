@@ -96,6 +96,68 @@ Also available: `AuthenticationError` (401), `PlanRequiredError` (402),
 `PermissionDeniedError` (403), `NotFoundError` (404), `BadRequestError`
 (400, carries `issues`), and the `APIError` base for everything else.
 
+### Retries and rate limits
+
+Requests with **idempotent methods — GET, HEAD, PUT, DELETE —** are retried
+automatically on 429s, 5xx responses, and network errors, with capped,
+full-jitter exponential backoff. When a 429 carries a `Retry-After` header
+(whole seconds — the API always sends delta-seconds), that wait is honored
+exactly instead of the computed backoff, capped by the same maximum.
+
+| Setting                                          | Default                                                      |
+| ------------------------------------------------ | ------------------------------------------------------------ |
+| `maxRetries` (retries after the initial attempt) | `3`                                                          |
+| Backoff base                                     | `500 ms`                                                      |
+| Backoff cap (also caps `Retry-After`)            | `30 s`                                                        |
+| Jitter                                           | full — each wait is uniform in `[0, min(cap, base × 2ⁿ))`   |
+
+`maxRetries` is configurable on the client and per request (`0` disables
+retries either way):
+
+```ts
+const slothbox = new Slothbox({ apiKey, maxRetries: 5 });
+
+await slothbox.environments.get({ orgId, envId }, { maxRetries: 0 }); // single shot
+```
+
+Backoff sleeps respect your `AbortSignal` — aborting cancels a pending retry
+immediately.
+
+#### Why POST is special
+
+**POSTs are never blind-retried.** A POST that timed out may still have gone
+through — and a duplicated `environments.launch` provisions a **second EC2
+box on your AWS bill**. A POST becomes retryable only when the request
+carries an `Idempotency-Key` header, which makes a server-side replay return
+the original result instead of acting twice. `environments.launch` supports
+this via `idempotencyKey`:
+
+```ts
+await slothbox.environments.launch(
+  { orgId, body: { templateId } },
+  { idempotencyKey: 'launch-7c2a' }, // safe to retry — and now the SDK will
+);
+```
+
+PATCH gets the same conservative treatment: not retried unless you attach an
+`Idempotency-Key` header yourself (via per-request `headers`).
+
+When retries exhaust, the normal typed error is thrown with `retryContext`
+attached — `{ attempts, maxRetries, lastRetryAfter, totalDelayMs }` — so an
+exhausted `RateLimitError` tells you how many attempts were made and the last
+`Retry-After` the API sent.
+
+#### Rate limits are a normal operating condition
+
+Service-account keys get a much higher per-key request budget, but the **org-scoped tiers still
+bite** under automation: compute operations are limited to 10/min **and
+60/hr** per org, assume-role to 20/min, GitHub operations to 30/min. A queue
+worker fanning out launches will see 429s in routine operation — that is what
+this middleware is for. One caveat: when the hourly compute tier trips, the
+API can send a `Retry-After` far above the 30 s backoff cap; retries will
+exhaust quickly, so catch the `RateLimitError`, read `err.retryAfter` (and
+`err.retryContext`), and schedule the work instead of spinning.
+
 ### Pagination
 
 Cursor-based lists (`audit.listOrgEvents`, `audit.listMyEvents`,

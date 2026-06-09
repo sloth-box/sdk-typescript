@@ -189,6 +189,7 @@ describe('response handling', () => {
     const client = new Slothbox({
       apiKey: API_KEY,
       fetch: () => Promise.reject(boom),
+      maxRetries: 0, // connection errors are retryable — keep this test single-shot
     });
     const failure = await client.health.get().then(() => null, (error: unknown) => error);
     expect(failure).toBeInstanceOf(APIConnectionError);

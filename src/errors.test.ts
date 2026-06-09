@@ -15,9 +15,17 @@ import {
 
 const REQUEST_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
 
-/** A client wired to reply with exactly these recorded responses. */
+/**
+ * A client wired to reply with exactly these recorded responses. Retries are
+ * disabled — these tests assert error mapping, not the retry policy
+ * (`src/retry.test.ts`), and 429/5xx responses would otherwise be retried.
+ */
 function clientWith(...responses: Response[]): Slothbox {
-  return new Slothbox({ apiKey: 'sk_test', fetch: createMockFetch(...responses).fetch });
+  return new Slothbox({
+    apiKey: 'sk_test',
+    fetch: createMockFetch(...responses).fetch,
+    maxRetries: 0,
+  });
 }
 
 function envelope(message: string, code?: string, issues?: unknown) {

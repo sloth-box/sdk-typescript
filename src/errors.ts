@@ -39,8 +39,18 @@ export type SlothboxErrorCode =
   // forward compatibility: any other stable code the API may add
   | (string & {});
 
+import type { RetryContext } from './retry.js';
+
 /** Base class for every error thrown by `@slothbox/sdk`. */
 export class SlothboxError extends Error {
+  /**
+   * Attached by the retry middleware (SLO-133) when this error ended a
+   * retryable request: attempts made, retries permitted, last `Retry-After`,
+   * total backoff time. `undefined` on errors that were never retry
+   * candidates (4xx other than 429, aborts, parse failures, …).
+   */
+  retryContext?: RetryContext;
+
   constructor(message: string, options?: { cause?: unknown }) {
     super(message, options);
     this.name = 'SlothboxError';

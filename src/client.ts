@@ -25,6 +25,12 @@ import {
 } from './core.js';
 import { APIConnectionError, SlothboxError, errorFromResponse } from './errors.js';
 import { CursorPage } from './pagination.js';
+import {
+  DEFAULT_MAX_RETRIES,
+  assertValidMaxRetries,
+  canRetryRequest,
+  withRetries,
+} from './retry.js';
 import { Audit } from './resources/audit.js';
 import { AwsConnections } from './resources/aws-connections.js';
 import { Environments } from './resources/environments.js';
@@ -65,6 +71,16 @@ export interface SlothboxOptions {
   baseUrl?: string;
   /** Custom `fetch` implementation. Defaults to the global `fetch`. */
   fetch?: FetchLike;
+  /**
+   * Maximum number of automatic retries after a request's initial attempt
+   * (so `maxRetries: 3` allows up to 4 attempts). Set 0 to disable retries.
+   * Overridable per request via `options.maxRetries`. Retries apply to
+   * GET/HEAD/PUT/DELETE on 429s, 5xx responses, and network errors, with
+   * capped full-jitter exponential backoff honoring `Retry-After` — POSTs
+   * are never retried without an `Idempotency-Key` (see `src/retry.ts`).
+   * @default 3
+   */
+  maxRetries?: number;
 }
 
 /** Options for the low-level {@link Slothbox.request} escape hatch. */
@@ -129,6 +145,7 @@ export class Slothbox implements APIRequester {
 
   readonly #apiKey: string;
   readonly #fetch: FetchLike | undefined;
+  readonly #maxRetries: number;
 
   readonly audit: Audit;
   readonly awsConnections: AwsConnections;
@@ -158,6 +175,7 @@ export class Slothbox implements APIRequester {
     this.#apiKey = apiKey;
     this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, '');
     this.#fetch = options.fetch;
+    this.#maxRetries = assertValidMaxRetries(options.maxRetries ?? DEFAULT_MAX_RETRIES);
 
     this.audit = new Audit(this);
     this.awsConnections = new AwsConnections(this);
@@ -199,6 +217,7 @@ export class Slothbox implements APIRequester {
       ...(body !== undefined ? { body } : {}),
       ...(options?.signal !== undefined ? { signal: options.signal } : {}),
       ...(options?.headers !== undefined ? { headers: options.headers } : {}),
+      ...(options?.maxRetries !== undefined ? { maxRetries: options.maxRetries } : {}),
     }) as Promise<ResultOf<K>>;
   }
 
@@ -234,6 +253,10 @@ export class Slothbox implements APIRequester {
    * JSON responses are parsed; non-JSON responses (e.g. the CloudFormation
    * template YAML) resolve to the raw body string; 204s resolve to
    * `undefined`. Non-2xx responses throw the typed error hierarchy.
+   *
+   * Retryable requests (idempotent method, or any method carrying an
+   * `Idempotency-Key` header) are retried on 429/5xx/network errors per the
+   * policy in `src/retry.ts`.
    */
   async request<T = unknown>(
     method: HttpMethod,
@@ -260,45 +283,60 @@ export class Slothbox implements APIRequester {
       );
     }
 
-    let response: Response;
-    try {
-      response = await fetchImpl(url, {
-        method,
-        headers,
-        ...(hasBody ? { body: JSON.stringify(options.body) } : {}),
-        signal: options.signal ?? null,
-      });
-    } catch (error) {
-      // Deliberate cancellation is the caller's — re-throw untouched.
-      if (isAbortError(error)) throw error;
-      const reason = error instanceof Error ? error.message : String(error);
-      throw new APIConnectionError(`Request to ${url} failed: ${reason}`, { cause: error });
-    }
-
-    if (!response.ok) {
-      const raw = await response.text().catch(() => '');
-      let parsed: unknown = raw;
+    const body = hasBody ? JSON.stringify(options.body) : undefined;
+    const attempt = async (): Promise<T> => {
+      let response: Response;
       try {
-        parsed = raw === '' ? undefined : JSON.parse(raw);
-      } catch {
-        // not JSON — keep the raw text for the error message fallback
+        response = await fetchImpl(url, {
+          method,
+          headers,
+          ...(body !== undefined ? { body } : {}),
+          signal: options.signal ?? null,
+        });
+      } catch (error) {
+        // Deliberate cancellation is the caller's — re-throw untouched.
+        if (isAbortError(error)) throw error;
+        const reason = error instanceof Error ? error.message : String(error);
+        throw new APIConnectionError(`Request to ${url} failed: ${reason}`, { cause: error });
       }
-      throw errorFromResponse(response.status, parsed, response.headers);
-    }
 
-    if (response.status === 204) return undefined as T;
-    const text = await response.text();
-    if (text === '') return undefined as T;
-    const contentType = response.headers.get('content-type') ?? '';
-    if (!/\bjson\b/i.test(contentType)) {
-      // The API's only non-JSON success is the CloudFormation template
-      // (application/yaml) — surface it as a string, never JSON.parse it.
-      return text as T;
-    }
-    try {
-      return JSON.parse(text) as T;
-    } catch (error) {
-      throw new SlothboxError(`Failed to parse JSON response from ${url}`, { cause: error });
-    }
+      if (!response.ok) {
+        const raw = await response.text().catch(() => '');
+        let parsed: unknown = raw;
+        try {
+          parsed = raw === '' ? undefined : JSON.parse(raw);
+        } catch {
+          // not JSON — keep the raw text for the error message fallback
+        }
+        throw errorFromResponse(response.status, parsed, response.headers);
+      }
+
+      if (response.status === 204) return undefined as T;
+      const text = await response.text();
+      if (text === '') return undefined as T;
+      const contentType = response.headers.get('content-type') ?? '';
+      if (!/\bjson\b/i.test(contentType)) {
+        // The API's only non-JSON success is the CloudFormation template
+        // (application/yaml) — surface it as a string, never JSON.parse it.
+        return text as T;
+      }
+      try {
+        return JSON.parse(text) as T;
+      } catch (error) {
+        throw new SlothboxError(`Failed to parse JSON response from ${url}`, { cause: error });
+      }
+    };
+
+    const maxRetries =
+      options.maxRetries === undefined
+        ? this.#maxRetries
+        : assertValidMaxRetries(options.maxRetries);
+    return withRetries(attempt, {
+      // The POST rule: a non-idempotent request without an Idempotency-Key
+      // header gets 0 retries — a duplicated launch would provision a second
+      // EC2 box on the customer's bill.
+      maxRetries: canRetryRequest(method, headers) ? maxRetries : 0,
+      ...(options.signal !== undefined ? { signal: options.signal } : {}),
+    });
   }
 }
