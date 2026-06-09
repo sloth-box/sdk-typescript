@@ -1,0 +1,167 @@
+# Spec-change regeneration loop (SLO-130).
+#
+# Daily (and on manual dispatch) this fetches the published openapi.json,
+# and — only when it differs from the pinned copy — regenerates
+# src/generated/ and opens (or updates) a PR with an operation-level diff
+# in the body. Breaking-change heuristics (see scripts/spec-diff.mjs) are
+# flagged at the top of the body and via the `breaking-spec-change` label
+# so a human gates them; additive-only changes get a routine note.
+#
+# Duplicate-PR prevention: one regen PR at a time. Before creating, we look
+# for an open PR whose head branch starts with `regen/spec-` and reuse that
+# branch; peter-evans/create-pull-request then force-updates the existing
+# branch + PR instead of stacking a new one. A fresh PR gets a dated branch
+# (regen/spec-YYYYMMDD).
+#
+# NOTE: until sloth-box/api's spec stack (SLO-113/114/115) deploys, the
+# published spec has no operationIds, so `npm run generate` will (correctly)
+# reject it and this job fails with that validation error — expected; the
+# loop goes green once the api stack lands. See README "Generated types".
+
+name: Spec regeneration
+
+on:
+  schedule:
+    - cron: '23 5 * * *' # daily, off-peak UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+# The published spec's one source of truth for this workflow. Must match the
+# URL documented in README.md ("Updating the pinned spec").
+env:
+  PUBLISHED_SPEC_URL: https://slothbox-api-publicassetsbucket-mjdmnco0nf5t.s3.eu-west-2.amazonaws.com/openapi.json
+
+concurrency:
+  group: spec-regen
+  cancel-in-progress: false
+
+jobs:
+  regen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Fetch published spec
+        run: |
+          curl -fsSL --retry 3 --retry-delay 5 "$PUBLISHED_SPEC_URL" -o /tmp/openapi.published.json
+          node -e "JSON.parse(require('fs').readFileSync('/tmp/openapi.published.json','utf8'))" || {
+            echo "::error::Fetched spec from $PUBLISHED_SPEC_URL is not valid JSON — refusing to proceed."
+            exit 1
+          }
+
+      - name: Compare with pinned spec
+        id: spec
+        run: |
+          if cmp -s openapi.json /tmp/openapi.published.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Published spec is byte-identical to the pinned copy — nothing to do."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Published spec differs from the pinned copy — preparing regeneration PR."
+          fi
+
+      # Operation-level diff + breaking heuristics, computed while the old
+      # pinned spec is still in place.
+      - name: Compute operation-level diff
+        if: steps.spec.outputs.changed == 'true'
+        id: diff
+        run: |
+          node scripts/spec-diff.mjs openapi.json /tmp/openapi.published.json > /tmp/spec-diff.md
+          node scripts/spec-diff.mjs openapi.json /tmp/openapi.published.json --json > /tmp/spec-diff.json
+          breaking=$(node -p "JSON.parse(require('fs').readFileSync('/tmp/spec-diff.json','utf8')).breaking")
+          echo "breaking=$breaking" >> "$GITHUB_OUTPUT"
+          cat /tmp/spec-diff.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Update pinned spec and regenerate types
+        if: steps.spec.outputs.changed == 'true'
+        run: |
+          cp /tmp/openapi.published.json openapi.json
+          if ! npm run generate; then
+            echo "::error::The published spec at $PUBLISHED_SPEC_URL failed 'npm run generate' validation (see log above — most likely missing/duplicate operationIds). No PR opened. Until sloth-box/api's spec stack (SLO-113/114/115) deploys this is EXPECTED — the published spec does not carry operationIds yet."
+            exit 1
+          fi
+
+      # One open regen PR at a time: reuse the existing PR's head branch if
+      # there is one, so re-runs update it instead of stacking duplicates.
+      - name: Pick PR branch (reuse open regen PR if any)
+        if: steps.spec.outputs.changed == 'true'
+        id: branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          existing=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open \
+            --json headRefName \
+            --jq '[.[].headRefName | select(startswith("regen/spec-"))][0] // empty')
+          if [ -n "$existing" ]; then
+            echo "Reusing open regen PR branch: $existing"
+            echo "branch=$existing" >> "$GITHUB_OUTPUT"
+          else
+            echo "branch=regen/spec-$(date -u +%Y%m%d)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Ensure labels exist
+        if: steps.spec.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create spec-regen --repo "$GITHUB_REPOSITORY" \
+            --description "Automated spec-regeneration PR (SLO-130)" --color 0E8A16 2>/dev/null || true
+          gh label create breaking-spec-change --repo "$GITHUB_REPOSITORY" \
+            --description "Spec-diff heuristics flagged a potentially breaking API change" --color B60205 2>/dev/null || true
+
+      - name: Assemble PR metadata
+        if: steps.spec.outputs.changed == 'true'
+        id: meta
+        run: |
+          if [ "${{ steps.diff.outputs.breaking }}" = "true" ]; then
+            echo "title=chore: refresh pinned OpenAPI spec (⚠️ breaking heuristics tripped)" >> "$GITHUB_OUTPUT"
+            {
+              echo 'labels<<EOF'
+              echo 'spec-regen'
+              echo 'breaking-spec-change'
+              echo 'EOF'
+            } >> "$GITHUB_OUTPUT"
+          else
+            echo "title=chore: refresh pinned OpenAPI spec from published spec" >> "$GITHUB_OUTPUT"
+            echo "labels=spec-regen" >> "$GITHUB_OUTPUT"
+          fi
+          {
+            echo "Automated refresh of the pinned \`openapi.json\` + regenerated \`src/generated/\` from the published spec."
+            echo
+            echo "- Source: $PUBLISHED_SPEC_URL"
+            echo "- Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo
+            cat /tmp/spec-diff.md
+            echo
+            echo '<!-- slothbox-spec-regen:SLO-130 -->'
+          } > /tmp/pr-body.md
+
+      - name: Open or update regeneration PR
+        if: steps.spec.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          # PRs opened with the default GITHUB_TOKEN do not trigger this
+          # repo's `on: pull_request` CI; set the REGEN_GITHUB_TOKEN secret
+          # (a fine-grained PAT with contents+pull-requests write) to get CI
+          # running on the auto-PRs.
+          token: ${{ secrets.REGEN_GITHUB_TOKEN || github.token }}
+          branch: ${{ steps.branch.outputs.branch }}
+          base: main
+          add-paths: |
+            openapi.json
+            src/generated/**
+          commit-message: 'chore: refresh pinned OpenAPI spec from published spec'
+          title: ${{ steps.meta.outputs.title }}
+          body-path: /tmp/pr-body.md
+          labels: ${{ steps.meta.outputs.labels }}
+          delete-branch: true

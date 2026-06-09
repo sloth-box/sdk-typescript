@@ -206,5 +206,24 @@ without the other.
 > (correctly) refuse it. The spec pinned here was taken from that unmerged
 > branch; refresh from the published URL once the stack lands.
 
-This manual procedure is interim — SLO-130 adds an automated regeneration
-loop that watches the published spec and opens the refresh PR for you.
+### Automated regeneration loop
+
+You normally don't run the manual procedure above: the **Spec regeneration**
+workflow (`.github/workflows/regen.yml`, daily + `workflow_dispatch`) fetches
+the published spec, exits quietly when it matches the pinned copy, and
+otherwise regenerates and opens a PR (branch `regen/spec-YYYYMMDD`; re-runs
+update the existing open regen PR rather than stacking duplicates). The PR
+body carries an operation-level diff (`METHOD path -> operationId`, added /
+removed / renamed, plus parameter and required-field changes per operation)
+computed by `scripts/spec-diff.mjs` (also runnable by hand:
+`npm run spec:diff -- old.json new.json`). Changes that trip the
+breaking-change heuristics — removed operation/path, renamed operationId,
+new required parameter/field, type change, removed response field — are
+flagged in a ⚠️ section at the top and tagged with the
+`breaking-spec-change` label so a human gates the merge; additive-only
+changes get a routine note.
+
+Until the api spec stack deploys (see the note above), the regeneration job
+**fails by design** when the published spec changes, because `npm run
+generate` rejects a spec without `operationId`s — the job error says exactly
+that. The loop goes green once the api stack lands on its `main`.
