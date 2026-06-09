@@ -1,0 +1,93 @@
+# Release automation (SLO-129).
+#
+# Two stages, one workflow:
+#   1. release-please opens/updates a release PR from conventional commits on
+#      main. Merging that PR makes release-please create the GitHub release
+#      and tag (e.g. v0.1.0) on the next run.
+#   2. When a release is created, the publish job builds, tests, and runs
+#      `npm publish` via **npm trusted publishing (OIDC)** with a provenance
+#      attestation. There is NO npm token anywhere — authentication is a
+#      short-lived OIDC token minted per-run (`id-token: write`).
+#
+# NOTE: publishing is dormant until the one-time setup in RELEASING.md is
+# done (npm scope registered, trusted publisher configured for this repo +
+# this workflow filename, repo flipped public for provenance, license chosen,
+# and the *first* version published manually — npm cannot create a brand-new
+# package via OIDC). Until then the release-please job still works; only the
+# publish job would fail, and only if a release PR is merged.
+#
+# The publish job lives in this workflow (rather than `on: release`) because
+# releases created with the default GITHUB_TOKEN do not trigger other
+# workflows.
+
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+# One release pipeline at a time; never cancel a publish mid-flight.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # release commits, tags, GitHub releases
+      pull-requests: write # open/update the release PR
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  publish:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # OIDC token for npm trusted publishing — no npm secrets
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Publish exactly what was tagged, not whatever main has moved to.
+          ref: ${{ needs.release-please.outputs.tag_name }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          cache: npm
+
+      # Trusted publishing requires npm >= 11.5.1; upgrade explicitly rather
+      # than depending on whichever npm the runner's node 24 image bundles.
+      - name: Update npm (trusted publishing needs >= 11.5.1)
+        run: |
+          npm install -g npm@latest
+          npm --version
+
+      - run: npm ci
+
+      - run: npm run lint
+
+      - run: npm run build
+
+      - run: npm test
+
+      - run: npm run check:package
+
+      # OIDC is detected automatically (id-token: write + a matching trusted
+      # publisher on npmjs.com). --provenance is explicit on purpose: it makes
+      # the publish fail loudly if attestation can't be generated (e.g. the
+      # repo is still private) instead of silently shipping without one.
+      - name: Publish to npm (trusted publishing + provenance)
+        run: npm publish --provenance --access public

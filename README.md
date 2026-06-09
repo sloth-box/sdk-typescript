@@ -161,3 +161,9 @@ npm test               # vitest
 npm run build          # tsup → dist/ (ESM + CJS + .d.ts/.d.cts)
 npm run check:package  # publint + arethetypeswrong against the packed tarball
 ```
+
+## Releasing
+
+Versions, changelog, and npm publishing are fully automated from conventional
+commits (release-please + npm trusted publishing with provenance). See
+[RELEASING.md](./RELEASING.md).
