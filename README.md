@@ -2,9 +2,10 @@
 
 Official TypeScript SDK for the [Slothbox](https://slothbox.dev) API.
 
-> **Status: pre-release — not yet published to npm.** This repo currently
-> contains the package skeleton (SLO-124) and the webhook toolkit (SLO-128);
-> the client runtime is in progress (SLO-127). Do not depend on it yet.
+> **Status: pre-release — not yet published to npm.** The core client runtime
+> (auth, typed errors, pagination, the full resource surface — SLO-127), the
+> webhook toolkit (SLO-128), and the release pipeline are implemented. Do not
+> depend on it yet.
 
 ## Versioning
 
@@ -26,12 +27,91 @@ Not published yet. Once it is:
 npm install @slothbox/sdk
 ```
 
-## Usage (preview — not implemented yet)
+## Quickstart
 
 ```ts
-import { SlothboxClient } from '@slothbox/sdk';
+import { Slothbox } from '@slothbox/sdk';
 
-const slothbox = new SlothboxClient({ apiKey: process.env.SLOTHBOX_API_KEY! });
+// Reads the SLOTHBOX_API_KEY environment variable when apiKey is omitted.
+const slothbox = new Slothbox({ apiKey: 'sk_…' });
+
+const { environments } = await slothbox.environments.list({ orgId: 'org_…' });
+```
+
+The client works anywhere `fetch` does — pass `baseUrl` to target another
+stack, or `fetch` to supply your own implementation.
+
+### Authentication
+
+The API key is sent **as-is** in the `Authorization` header — the API accepts
+the raw key, and also strips an optional `Bearer ` prefix server-side, so both
+forms work. The SDK sends the raw key and never assumes a prefix.
+
+### Resource surface
+
+Every published operation is exposed, grouped by resource family and named
+after the spec's `operationId`s: `slothbox.environments.launch(…)`,
+`slothbox.webhooks.rollSecret(…)`, `slothbox.templates.rebake(…)`, ….
+Path params sit at the top of the args object, with `query` and `body` keys
+where the operation defines them — all typed from the generated spec types.
+
+```ts
+const box = await slothbox.environments.launch(
+  { orgId, body: { templateId, name: 'checkout-dev' } },
+  { idempotencyKey: 'launch-7c2a' }, // retried launches return the original box
+);
+```
+
+Every method also takes per-request options: `signal` (an `AbortSignal`) and
+`headers`.
+
+The one non-JSON operation, `awsConnections.getTemplate()`, resolves to the
+CloudFormation template as a raw YAML string.
+
+### Error handling
+
+Non-2xx responses throw a typed hierarchy mapped from the API's
+`{ error: { message, code? } }` envelope (with a status-only fallback), all
+extending `SlothboxError`. HTTP errors expose `status`, `code`, `message`,
+and `requestId` (from the gateway's `x-amzn-requestid` header); network
+failures throw `APIConnectionError`.
+
+```ts
+import { ConflictError, RateLimitError } from '@slothbox/sdk';
+
+try {
+  await slothbox.environments.launch({ orgId, body: { templateId } });
+} catch (err) {
+  if (err instanceof ConflictError && err.code === 'seat_ceiling_exceeded') {
+    // …stop fanning out
+  } else if (err instanceof RateLimitError) {
+    await sleep((err.retryAfter ?? 1) * 1000); // seconds, from Retry-After
+  } else {
+    throw err;
+  }
+}
+```
+
+Also available: `AuthenticationError` (401), `PlanRequiredError` (402),
+`PermissionDeniedError` (403), `NotFoundError` (404), `BadRequestError`
+(400, carries `issues`), and the `APIError` base for everything else.
+
+### Pagination
+
+Cursor-based lists (`audit.listOrgEvents`, `audit.listMyEvents`,
+`audit.listApiKeyEvents`, `webhooks.listDeliveries`) resolve to a
+`CursorPage`: the typed page body plus `for await` auto-iteration across
+pages.
+
+```ts
+const page = await slothbox.audit.listOrgEvents({ orgId, query: { limit: 100 } });
+
+page.items;          // this page's events
+page.hasNextPage();  // and page.getNextPage() for manual paging
+
+for await (const event of page) {
+  // transparently fetches subsequent pages
+}
 ```
 
 ## Verifying webhooks

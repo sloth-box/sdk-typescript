@@ -1,6 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import pkg from '../package.json';
-import { SlothboxClient, VERSION } from './index.js';
+import {
+  APIConnectionError,
+  APIError,
+  AuthenticationError,
+  BadRequestError,
+  ConflictError,
+  CursorPage,
+  NotFoundError,
+  PermissionDeniedError,
+  PlanRequiredError,
+  RateLimitError,
+  Slothbox,
+  SlothboxClient,
+  SlothboxError,
+  VERSION,
+} from './index.js';
 
 describe('VERSION', () => {
   it('matches package.json', () => {
@@ -8,27 +23,33 @@ describe('VERSION', () => {
   });
 });
 
-describe('SlothboxClient (scaffold)', () => {
-  it('constructs with an apiKey and applies the default baseUrl', () => {
-    const client = new SlothboxClient({ apiKey: 'sk_test' });
-    expect(client.baseUrl).toBe('https://api.slothbox.dev');
+describe('public surface', () => {
+  it('exports the Slothbox client', () => {
+    expect(typeof Slothbox).toBe('function');
   });
 
-  it('honours a custom baseUrl', () => {
-    const client = new SlothboxClient({
-      apiKey: 'sk_test',
-      baseUrl: 'http://localhost:3000',
-    });
-    expect(client.baseUrl).toBe('http://localhost:3000');
+  it('keeps the scaffold-era SlothboxClient name as a deprecated alias', () => {
+    expect(SlothboxClient).toBe(Slothbox);
   });
 
-  it('throws without an apiKey', () => {
-    // @ts-expect-error — exercising the runtime guard
-    expect(() => new SlothboxClient({})).toThrow(/apiKey/);
+  it('exports the full error hierarchy', () => {
+    for (const cls of [
+      SlothboxError,
+      APIConnectionError,
+      APIError,
+      BadRequestError,
+      AuthenticationError,
+      PlanRequiredError,
+      PermissionDeniedError,
+      NotFoundError,
+      ConflictError,
+      RateLimitError,
+    ]) {
+      expect(typeof cls).toBe('function');
+    }
   });
 
-  it('request() throws the not-implemented error', () => {
-    const client = new SlothboxClient({ apiKey: 'sk_test' });
-    expect(() => client.request()).toThrow(/not implemented/);
+  it('exports CursorPage', () => {
+    expect(typeof CursorPage).toBe('function');
   });
 });

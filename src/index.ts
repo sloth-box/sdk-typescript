@@ -1,10 +1,12 @@
 /**
  * @slothbox/sdk — Official TypeScript SDK for the Slothbox API.
  *
- * The webhook toolkit (signature verification + typed events, SLO-128) is
- * implemented — see ./webhooks. The client runtime lands in SLO-127; until
- * then the client below is a placeholder and the package is not published
- * to npm.
+ * ```ts
+ * import { Slothbox } from '@slothbox/sdk';
+ *
+ * const slothbox = new Slothbox(); // reads SLOTHBOX_API_KEY
+ * const { environments } = await slothbox.environments.list({ orgId });
+ * ```
  */
 
 export * from './webhooks.js';
@@ -15,52 +17,42 @@ export * from './webhooks.js';
  */
 export const VERSION = '0.1.0';
 
-/** Options accepted by {@link SlothboxClient}. */
-export interface SlothboxClientOptions {
-  /**
-   * Slothbox API key (`sk_...`). Create one in the Slothbox dashboard.
-   * Sent verbatim in the `Authorization` header — no `Bearer ` prefix.
-   */
-  apiKey: string;
-  /**
-   * Base URL of the Slothbox API.
-   * @default "https://api.slothbox.dev"
-   */
-  baseUrl?: string;
-}
+// Client
+export { DEFAULT_BASE_URL, Slothbox } from './client.js';
+export type { FetchLike, RawRequestOptions, SlothboxOptions } from './client.js';
 
-/**
- * Client for the Slothbox API.
- *
- * **NOT YET IMPLEMENTED.** This is a placeholder so the package shape, build,
- * and typings can be validated ahead of the real runtime (SLO-127). Every
- * method throws until then. The implementation will use the global `fetch`
- * available in Node 18+, Cloudflare Workers, Deno, Bun, and browsers — no
- * runtime dependencies.
- */
-export class SlothboxClient {
-  readonly baseUrl: string;
-  readonly #apiKey: string;
+/** @deprecated Renamed — use {@link Slothbox}. */
+export { Slothbox as SlothboxClient } from './client.js';
+/** @deprecated Renamed — use {@link SlothboxOptions}. */
+export type { SlothboxOptions as SlothboxClientOptions } from './client.js';
 
-  constructor(options: SlothboxClientOptions) {
-    if (!options?.apiKey) {
-      throw new Error('SlothboxClient requires an apiKey');
-    }
-    this.#apiKey = options.apiKey;
-    this.baseUrl = options.baseUrl ?? 'https://api.slothbox.dev';
-  }
+// Per-request options & operation-keyed helper types
+export type {
+  ArgsOf,
+  BodyOf,
+  IdempotentRequestOptions,
+  OperationId,
+  RequestOptions,
+  ResultOf,
+} from './core.js';
 
-  /**
-   * Placeholder. The request layer ships in SLO-127.
-   * @throws Always.
-   */
-  request(): never {
-    // Reference the key so the stub carries the same private state the real
-    // client will, without tripping noUnusedLocals-style checks later.
-    void this.#apiKey;
-    throw new Error(
-      '@slothbox/sdk is not implemented yet — this is a scaffold (SLO-124). ' +
-        'The client runtime arrives in SLO-127.',
-    );
-  }
-}
+// Errors
+export {
+  APIConnectionError,
+  APIError,
+  AuthenticationError,
+  BadRequestError,
+  ConflictError,
+  NotFoundError,
+  PermissionDeniedError,
+  PlanRequiredError,
+  RateLimitError,
+  SlothboxError,
+} from './errors.js';
+export type { APIErrorDetails, SlothboxErrorCode } from './errors.js';
+
+// Pagination
+export { CursorPage } from './pagination.js';
+
+// Generated OpenAPI types (schemas under `components['schemas']`)
+export type { components, operations, paths } from './generated/api.js';
