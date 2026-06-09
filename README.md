@@ -387,10 +387,53 @@ silently. Never edit the file by hand.
 npm ci
 npm run generate       # regenerate src/generated/ from the pinned openapi.json
 npm run lint           # strict tsc, no emit
-npm test               # vitest
+npm test               # vitest (unit — fast, offline, runs per-PR)
 npm run build          # tsup → dist/ (ESM + CJS + .d.ts/.d.cts)
 npm run check:package  # publint + arethetypeswrong against the packed tarball
 ```
+
+## Live integration tests
+
+`npm run test:integration` (own config: `vitest.integration.config.ts`) runs
+the SLO-136 suite against **production**, inside the dedicated fixture org
+from the SLO-123 provisioning runbook (`sloth-box/ops`). It is **not** part of
+per-PR CI — it runs on a daily schedule + `workflow_dispatch` via
+`.github/workflows/integration.yml`.
+
+Environment contract (the runbook's step 6 sets these on the repo):
+
+| Variable | Meaning |
+| --- | --- |
+| `SLOTHBOX_SDK_TEST_KEY` | Fixture org service-account key (`sk_…`) — **secret** |
+| `SLOTHBOX_SDK_TEST_ORG_ID` | Fixture orgId |
+| `SLOTHBOX_SDK_TEST_TEMPLATE_ID` | The baked minimal template's id |
+| `SLOTHBOX_API_BASE_URL` | Optional — default `https://api.slothbox.dev` |
+
+**No key ⇒ clean skip.** Without `SLOTHBOX_SDK_TEST_KEY` the live tests skip
+with a one-line reason (the fixture org is provisioned by a human checklist
+and may not exist yet); the dry-run teardown-mechanics tests in
+`test/integration/helpers.test.ts` still run, so the command is always
+meaningful. A key without the ids fails loudly — that's a misconfiguration,
+not an unprovisioned fixture.
+
+Coverage: auth + error taxonomy (401/404/403 → typed errors), CRUD over
+template metadata (drafts — no bake cost), env-config, and webhook endpoints,
+a webhook ping verified through the deliveries API (no public receiver in CI;
+signature scheme verified locally), and ONE full box lifecycle
+(launch → running → stop → stopped → terminate → terminated).
+
+Cost discipline — the suite spends real sandbox-account money:
+
+- Single box per run; everything serialized (`fileParallelism: false`); polls
+  ≥7s apart; at most 3 ops per run on the org's shared compute rate tier
+  (10/min, 60/hr).
+- Every created resource is named `sdk-ci-<runId>-…` and registered on a
+  cleanup stack the moment it exists; `afterAll` drains the stack even on
+  assertion failure and verifies termination by polling to a terminal state.
+- A belt-and-braces sweep runs at suite start **and** end, terminating any
+  leftover `sdk-ci-` boxes and deleting leftover `sdk-ci-` webhooks/templates
+  and `SDK_CI_` env-config from previous runs. Teardown failure fails the
+  suite loudly — a leaked box is standing AWS spend.
 
 ## Releasing
 

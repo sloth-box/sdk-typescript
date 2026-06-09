@@ -1,0 +1,70 @@
+# Live integration suite against the fixture org (SLO-136).
+#
+# NOT part of per-PR CI (that's ci.yml). This runs against PRODUCTION inside
+# the dedicated fixture org (SLO-123 runbook) and spends ~1¢ of sandbox EC2
+# per run, so it is scheduled + manual-only.
+#
+# Until the fixture org is provisioned (a human checklist — SLO-123), the
+# SLOTHBOX_SDK_TEST_KEY secret does not exist and this job no-ops gracefully
+# with a notice instead of failing.
+
+name: Integration (live fixture)
+
+on:
+  schedule:
+    # Daily, off-peak (03:17 UTC — odd minute to avoid the top-of-hour
+    # GitHub-hosted runner crunch).
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+# One run at a time, and NEVER cancel an in-flight run: a cancellation can
+# SIGKILL the suite between launch and teardown and leak a box (standing AWS
+# spend). Queued runs wait instead. The start-of-suite sweep is the safety
+# net for the truly unkillable cases (runner death).
+concurrency:
+  group: integration-live-fixture
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    # Launch→running can take 15 min; the suite serializes everything and the
+    # teardown sweep may itself need to terminate-and-verify. Generous, but a
+    # hard stop well under the next scheduled run.
+    timeout-minutes: 90
+    steps:
+      - name: Check fixture credentials
+        id: creds
+        env:
+          SLOTHBOX_SDK_TEST_KEY: ${{ secrets.SLOTHBOX_SDK_TEST_KEY }}
+        run: |
+          if [ -z "$SLOTHBOX_SDK_TEST_KEY" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Integration suite skipped::SLOTHBOX_SDK_TEST_KEY is not configured — the live fixture org has not been provisioned yet (SLO-123 human checklist). The job no-ops until the secret + variables are set (runbook step 6)."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.creds.outputs.configured == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.creds.outputs.configured == 'true'
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+        if: steps.creds.outputs.configured == 'true'
+
+      - name: Run live integration suite
+        if: steps.creds.outputs.configured == 'true'
+        env:
+          SLOTHBOX_SDK_TEST_KEY: ${{ secrets.SLOTHBOX_SDK_TEST_KEY }}
+          SLOTHBOX_SDK_TEST_ORG_ID: ${{ vars.SLOTHBOX_SDK_TEST_ORG_ID }}
+          SLOTHBOX_SDK_TEST_TEMPLATE_ID: ${{ vars.SLOTHBOX_SDK_TEST_TEMPLATE_ID }}
+          SLOTHBOX_API_BASE_URL: ${{ vars.SLOTHBOX_API_BASE_URL }}
+        run: npm run test:integration

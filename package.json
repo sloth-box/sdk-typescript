@@ -33,6 +33,7 @@
     "generate": "node scripts/generate.mjs",
     "spec:diff": "node scripts/spec-diff.mjs",
     "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:watch": "vitest",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
