@@ -1,6 +1,7 @@
 {
   "name": "@slothbox/sdk",
   "version": "0.1.0",
+  "license": "MIT",
   "description": "Official TypeScript SDK for the Slothbox API",
   "private": false,
   "type": "module",
