@@ -2,16 +2,15 @@
 
 Official TypeScript SDK for the [Slothbox](https://slothbox.dev) API.
 
-> **Status: pre-release — not yet published to npm.** The core client runtime
-> (auth, typed errors, pagination, the full resource surface — SLO-127), the
-> webhook toolkit (SLO-128), and the release pipeline are implemented. Do not
-> depend on it yet.
+> **Status: 0.x pre-GA.** Published to npm as
+> [`@slothbox/sdk`](https://www.npmjs.com/package/@slothbox/sdk). The API
+> surface may change between minor versions until 1.0.0 — pin an exact
+> version.
 
 ## Versioning
 
 The package is on **0.x pre-GA [semver](https://semver.org/#spec-item-4)**:
-anything may change between minor versions until 1.0.0. Pin an exact version
-once the package is published.
+anything may change between minor versions until 1.0.0. Pin an exact version.
 
 ## Runtime support
 
@@ -20,8 +19,6 @@ Workers, Deno, Bun, and modern browsers. Zero runtime dependencies, dual
 ESM + CJS builds.
 
 ## Installation
-
-Not published yet. Once it is:
 
 ```sh
 npm install @slothbox/sdk
