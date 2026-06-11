@@ -2269,11 +2269,11 @@ export interface operations {
     };
     searchDockerHub: {
         parameters: {
-            query?: never;
-            header?: never;
-            path: {
+            query: {
                 q: string;
             };
+            header?: never;
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
@@ -2326,11 +2326,11 @@ export interface operations {
     };
     listDockerHubTags: {
         parameters: {
-            query?: never;
-            header?: never;
-            path: {
+            query: {
                 image: string;
             };
+            header?: never;
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
@@ -2377,12 +2377,12 @@ export interface operations {
     };
     resolveDockerHubImage: {
         parameters: {
-            query?: never;
-            header?: never;
-            path: {
+            query: {
                 image: string;
                 tag: string;
             };
+            header?: never;
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
@@ -4692,7 +4692,9 @@ export interface operations {
     };
     deleteRegistryCredential: {
         parameters: {
-            query?: never;
+            query?: {
+                force?: "true" | "false";
+            };
             header?: never;
             path: {
                 orgId: string;

@@ -2985,7 +2985,7 @@
             },
             "required": true,
             "name": "q",
-            "in": "path"
+            "in": "query"
           }
         ],
         "responses": {
@@ -3078,12 +3078,12 @@
           {
             "lang": "typescript",
             "label": "@slothbox/sdk",
-            "source": "const slothbox = new Slothbox();\nconst result = await slothbox.catalog.searchDockerHub({ q: '…' });"
+            "source": "const slothbox = new Slothbox();\nconst result = await slothbox.catalog.searchDockerHub({ query: { q: 'grafana' } });"
           },
           {
             "lang": "python",
             "label": "slothbox (Python)",
-            "source": "client = Slothbox()\nresult = client.catalog.search_docker_hub(\"…\")"
+            "source": "client = Slothbox()\nresult = client.catalog.search_docker_hub(q=\"grafana\")"
           }
         ]
       }
@@ -3112,7 +3112,7 @@
             },
             "required": true,
             "name": "image",
-            "in": "path"
+            "in": "query"
           }
         ],
         "responses": {
@@ -3187,12 +3187,12 @@
           {
             "lang": "typescript",
             "label": "@slothbox/sdk",
-            "source": "const slothbox = new Slothbox();\nconst result = await slothbox.catalog.listDockerHubTags({ image: '…' });"
+            "source": "const slothbox = new Slothbox();\nconst result = await slothbox.catalog.listDockerHubTags({ query: { image: 'grafana/grafana' } });"
           },
           {
             "lang": "python",
             "label": "slothbox (Python)",
-            "source": "client = Slothbox()\nresult = client.catalog.list_docker_hub_tags(\"…\")"
+            "source": "client = Slothbox()\nresult = client.catalog.list_docker_hub_tags(image=\"grafana/grafana\")"
           }
         ]
       }
@@ -3221,7 +3221,7 @@
             },
             "required": true,
             "name": "image",
-            "in": "path"
+            "in": "query"
           },
           {
             "schema": {
@@ -3233,7 +3233,7 @@
             },
             "required": true,
             "name": "tag",
-            "in": "path"
+            "in": "query"
           }
         ],
         "responses": {
@@ -3293,12 +3293,12 @@
           {
             "lang": "typescript",
             "label": "@slothbox/sdk",
-            "source": "const slothbox = new Slothbox();\nconst result = await slothbox.catalog.resolveDockerHubImage({ image: '…', tag: '…' });"
+            "source": "const slothbox = new Slothbox();\nconst result = await slothbox.catalog.resolveDockerHubImage({\n  query: { image: 'postgres', tag: '16' },\n});"
           },
           {
             "lang": "python",
             "label": "slothbox (Python)",
-            "source": "client = Slothbox()\nresult = client.catalog.resolve_docker_hub_image(\"…\", \"…\")"
+            "source": "client = Slothbox()\nresult = client.catalog.resolve_docker_hub_image(image=\"postgres\", tag=\"16\")"
           }
         ]
       }
@@ -8289,6 +8289,19 @@
             "required": true,
             "name": "credentialId",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "description": "Set to `true` to delete even when templates still reference the credential (responds 200 with the affected-template list instead of 409)."
+            },
+            "required": false,
+            "name": "force",
+            "in": "query"
           }
         ],
         "responses": {
